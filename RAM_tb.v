@@ -1,11 +1,11 @@
-module RAM8_tb();
+module RAM_tb();
    wire [15:0] out;
    reg [15:0]  in;
    reg [2:0]   address;
    reg 	       load;
    reg 	       clk;
 
-   RAM8 DUT (
+   RAM #(8, 3) DUT (
 	     .out(out),
 	     .in(in),
 	     .address(address),
