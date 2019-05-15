@@ -1,21 +1,21 @@
 module ALU
   (
-   input [15:0]  x,
-   input [15:0]  y,
+   input signed [15:0]  x,
+   input signed [15:0]  y,
    input         zx,
    input         nx,
    input         zy,
    input         ny,
    input         f,
    input         no,
-   output reg [15:0] out,
+   output reg signed [15:0] out,
    output reg        zr,
    output reg        ng
    );
 
-   wire signed [15:0] x_internal;
-   wire signed [15:0] y_internal;
-   wire signed [15:0] out_internal;
+   reg signed [15:0] x_internal;
+   reg signed [15:0] y_internal;
+   reg signed [15:0] out_internal;
 
    // x_internal statements computation
    always @* begin
