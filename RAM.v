@@ -1,4 +1,4 @@
-module RAM #(parameter RAM_WIDTH = 8, parameter ADDR_WIDTH = 3)
+module RAM #(parameter RAM_WIDTH = 8, parameter ADDR_WIDTH = 3) // RAM_WIDTH == 2^(ADDR_WIDTH)
    (
     input 		   clk,
     input [ADDR_WIDTH-1:0] address,
@@ -7,7 +7,7 @@ module RAM #(parameter RAM_WIDTH = 8, parameter ADDR_WIDTH = 3)
     output reg [15:0] 	   out
     );
 
-   reg [15:0] 		   ram [RAM_WIDTH-1:0]; // 8-element array of 16-bit wide reg
+   reg [15:0] 		   ram [RAM_WIDTH-1:0]; // RAM_WIDTH-element array of 16-bit wide reg
 
    always @(posedge clk) begin
       if (load)
