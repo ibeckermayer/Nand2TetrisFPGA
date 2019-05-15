@@ -8,9 +8,9 @@ module ALU
    input         ny,
    input         f,
    input         no,
-   output [15:0] out,
-   output        zr,
-   output        ng
+   output reg [15:0] out,
+   output reg        zr,
+   output reg        ng
    );
 
    wire signed [15:0] x_internal;
