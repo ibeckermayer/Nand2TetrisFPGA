@@ -6,7 +6,7 @@ module CPU
    input  reset,
    output outM [15:0],
    output writeM,
-   output addressM [14:0],
+   output addressM [15:0],
    output pc [15:0]
    );
 

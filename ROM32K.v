@@ -1,6 +1,6 @@
 module ROM32K
   (
-   input [14:0]  address,
+   input [15:0]  address,
    output [15:0] out
    );
 

@@ -33,8 +33,8 @@ module Hack
       .pc(cpu_pc_to_rom_address)		      // output
       );
 
-   // instantiate 16k RAM
-   RAM #(16384, 14) data_mem
+   // instantiate RAM
+   RAM #(65536, 16) data_mem
      (
       .clk(clk),				  // input
       .address(cpu_addressM_to_data_mem_address), // input
