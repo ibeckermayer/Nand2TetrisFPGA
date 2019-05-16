@@ -6,8 +6,8 @@ module Hack
    );
 
    // connecting wires
-   wire data_mem_out_to_cpu_inM;
-   wire instr_mem_out_to_cpu_instruction;
+   wire [15:0] data_mem_out_to_cpu_inM;
+   wire [15:0] instr_mem_out_to_cpu_instruction;
    wire [15:0] cpu_outM_to_data_mem_in;
    wire        cpu_writeM_to_data_mem_load;
    wire [15:0] cpu_addressM_to_data_mem_address;
@@ -41,7 +41,5 @@ module Hack
       .load(cpu_writeM_to_data_mem_load),	  // input
       .in(cpu_outM_to_data_mem_in),		  // input
       .out(data_mem_out_to_cpu_inM)		  // output
-
-      )
-
+      );
 endmodule // Hack
