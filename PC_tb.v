@@ -25,6 +25,8 @@ module PC_tb();
 
       #30 load = 1;
       #10 inc = 1; load = 0;
+      #10 inc = 1; load = 1;
+      #10 load = 0;
       #50 reset = 1;
       #10 reset = 0;
    end // initial begin
