@@ -1,19 +1,18 @@
 module CPU
   (
-   input 	     clk,
-   input [15:0]      inM,
-   input [15:0]      instruction,
-   input 	     reset,
-   output reg [15:0] outM,
-   output 	     writeM,
-   output [15:0]     addressM,
-   output [15:0]     pc
+   input 	 clk,
+   input [15:0]  inM,
+   input [15:0]  instruction,
+   input 	 reset,
+   output [15:0] outM,
+   output 	 writeM,
+   output [15:0] addressM,
+   output [15:0] pc
    );
 
    // initialize A and D registers
    reg [15:0] 	     A;
    reg [15:0] 	     D;
-   reg 		     jump; 	// initialize jump as a reg for use in an always block, but can be thought of as a wire
 
    // initialize wires
    wire [15:0] 	     D_to_alu_x;
@@ -64,7 +63,7 @@ module CPU
       .load(jump),		// over-ridden by reset
       .reset(reset),		// highest priority
       .out(pc)
-      )
+      );
 
    // The Hack assembly language specification denotes two distinct types of instructions:
    // A-instruction: MSB == 0, loads the A register with value V = 0vvvvvvvvvvvvvvv
