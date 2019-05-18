@@ -15,7 +15,7 @@ Algorithm:
 '''
 from util import u_int_to_bin_str
 
-OUTPUT_FILE = '../tvs/PC.tv'
+OUTPUT_FILE = 'tvs/PC.tv'  # expects to be run from directory above this
 
 
 def PC_logic(in_v: int, reset: int, load: int, inc: int,
