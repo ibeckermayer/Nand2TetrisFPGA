@@ -5,7 +5,7 @@ module RAM_tb();
    reg 	       load;
    reg 	       clk;
 
-   RAM #(8, 3) DUT (
+   RAM #(32768, 15) DUT (	// 32K RAM as in final architecture
 	     .out(out),
 	     .in(in),
 	     .address(address),
