@@ -1,11 +1,17 @@
 module RAM_tb();
    wire [15:0] out;
+   reg [15:0]  out_expected;
    reg [15:0]  in;
-   reg [2:0]   address;
+   reg [15:0]  address;
    reg 	       load;
    reg 	       clk;
+   reg [31:0]  vectornum, errors;   // bookkeeping variables
+   reg [48:0]  testvectors[65542:0]; // array of testvectors; size determined from `wc -l tvs/RAM.tv`
 
-   RAM #(32768, 15) DUT (	// 32K RAM as in final architecture
+   RAM #(32767, 16) DUT (	// 32K RAM as in final architecture,
+				// still has 16 bit address but shouldn't
+				// ever go beyond 0111111111111111 owing
+				// to the nature of the A-instruction
 	     .out(out),
 	     .in(in),
 	     .address(address),
@@ -13,41 +19,43 @@ module RAM_tb();
 	     .clk(clk)
 	     );
 
-   initial begin
-      clk = 0;
-      load = 0;
-      address = 0;
-      in = 0;
+   // generate clock signal
+   always
+     begin
+	#5 clk = ~clk;		// 10ns period
+     end
 
-      #10 load = 1; address = 0; in = 0;
-      #10 load = 0; address = 0;
-      #10 load = 1; address = 1; in = 1;
-      #10 load = 0; address = 1;
-      #10 load = 1; address = 2; in = 2;
-      #10 load = 0; address = 2;
-      #10 load = 1; address = 3; in = 3;
-      #10 load = 0; address = 3;
-      #10 load = 1; address = 4; in = 4;
-      #10 load = 0; address = 4;
-      #10 load = 1; address = 5; in = 5;
-      #10 load = 1; address = 0; in = 0;
-      #10 load = 0; address = 0;
-      #10 load = 1; address = 1; in = 1;
-      #10 load = 0; address = 1;
-      #10 load = 1; address = 2; in = 2;
-      #10 load = 0; address = 2;
-      #10 load = 1; address = 3; in = 3;
-      #10 load = 0; address = 3;
-      #10 load = 1; address = 4; in = 4;
-      #10 load = 0; address = 4;
-      #10 load = 1; address = 5; in = 5;
-   end // initial begin
-
-   always #5 clk = ~clk;
-
-   initial #250 $stop;
-
+   // initialize clk, testvectors and bookkeepers
    initial
-     $monitor("At time %t, clk = %0d, load = %0d, address = %0d, in = %0d, out = %0d",
-              $time, clk, load, address, in, out);
-endmodule // RAM8_tb
+     begin
+	clk = 1;
+	$readmemb("tvs/RAM.tv", testvectors);
+	vectornum= 0; errors = 0;
+	{address, in, load, out_expected} = testvectors[vectornum]; // load test signals into device / out_expected
+     end
+
+   always @(posedge clk)
+     begin
+	#1;			// wait time for register
+	if (out != out_expected) // check that output is expected output
+	  begin			 // if error, display error
+	     $display("Error at test vector line %d", vectornum+1);
+	     $display("in=%d, address=%d, load=%d", in, address, load);
+	     $display("out=         %d", out);
+	     $display("out_expected=%d", out_expected);
+	     errors = errors + 1;
+	  end
+	{address, in, load, out_expected} = testvectors[vectornum]; // load test signals into device / out_expected
+     end // always @ (posedge clk)
+
+   // check signals on negedge of clock
+   always @(negedge clk)
+     begin
+	vectornum = vectornum + 1;
+	if (vectornum > 65542)
+	  begin
+	     $display("%d tests completed with %d errors", vectornum, errors);
+	     $finish;// End simulation
+	  end
+     end
+endmodule // RAM_tb
