@@ -1,5 +1,5 @@
 # Nand2TetrisFPGA
-This project is an FPGA implementation of the Hack computer architecture described in the book [https://www.nand2tetris.org/](The Elements of Computing Systems), By Noam Nisan and Shimon Schocken. Components are described in Verilog and can be found in the `src` directory.
+This project is an FPGA implementation of the Hack computer architecture described in the book [The Elements of Computing Systems](https://www.nand2tetris.org/), By Noam Nisan and Shimon Schocken. Components are described in Verilog and can be found in the `src` directory.
 
 ## Testing
 Test benches are simulated using Icarus Verilog version 10.2. Test benches are stored in the `test` directory.
