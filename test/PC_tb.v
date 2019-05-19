@@ -5,7 +5,7 @@ module PC_tb();
    wire [15:0] out;		    // output
    reg  [15:0] out_expected;	    // expected output
    reg  [31:0] vectornum, errors;   // bookkeeping variables
-   reg  [34:0] testvectors[3538:0]; // array of testvectors
+   reg  [34:0] testvectors[3538:0]; // array of testvectors; size determined from `wc -l tvs/PC.tv`
 
    // instantiate test device
    PC DUT
@@ -24,7 +24,7 @@ module PC_tb();
 	#5 clk = ~clk;		// 10ns period
      end
 
-   // initialize testvectors and bookkeepers
+   // initialize clk, testvectors and bookkeepers
    initial
      begin
 	clk = 1;
@@ -39,7 +39,8 @@ module PC_tb();
 	#1;			 // wait time for tick to register
 	if (out != out_expected) // check that output is expected output
 	  begin			 // if error, display error
-	     $display("Error at  in=%d, inc=%d, load=%d, reset=%d", in, inc, load, reset);
+	     $display("Error at test vector line %d", vectornum+1);
+	     $display("in=%d, inc=%d, load=%d, reset=%d", in, inc, load, reset);
 	     $display("out=         %d", out);
 	     $display("out_expected=%d", out_expected);
 	     errors = errors + 1;
@@ -50,8 +51,8 @@ module PC_tb();
    // check signals on negedge of clock
    always @(negedge clk)
      begin
-	vectornum= vectornum+ 1;
-	if (vectornum == 3539)
+	vectornum = vectornum + 1;
+	if (vectornum > 3538)
 	  begin
 	     $display("%d tests completed with %d errors", vectornum - 1, errors);
 	     $finish;// End simulation
