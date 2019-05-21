@@ -10,7 +10,7 @@ Format will be:
 Algorithm:
 - go through each address in ram and expect 32767 - address
 '''
-from util import u_int_to_bin_str
+from util import int_to_bin_str
 
 # expects to be run from directory above this
 ROM_MEMORY_INPUT = 'tvs/ROM_input.tv'  # ROM32K must be loaded from a file
@@ -19,12 +19,11 @@ OUTPUT_FILE = 'tvs/ROM.tv'  # file for the testbench
 # generate ROM_MEMORY_INPUT
 with open(ROM_MEMORY_INPUT, 'w') as f:
     for i in range(32768):
-        f.write(u_int_to_bin_str(32767 - i, 16) + '\n')
+        f.write(int_to_bin_str(32767 - i, 16) + '\n')
 
 
 def build_line(address: int, out_v: int) -> str:
-    return u_int_to_bin_str(address, 16) + '_' + u_int_to_bin_str(out_v,
-                                                                  16) + '\n'
+    return int_to_bin_str(address, 16) + '_' + int_to_bin_str(out_v, 16) + '\n'
 
 
 with open(OUTPUT_FILE, 'w') as f:

@@ -14,7 +14,7 @@ Algorithm:
 - confirm highest address register got 0. addressing doesn't rollover,
   out of bounds gets sent to the highest number register
 '''
-from util import u_int_to_bin_str
+from util import int_to_bin_str
 
 OUTPUT_FILE = 'tvs/RAM.tv'  # expects to be run from directory above this
 
@@ -23,9 +23,9 @@ def build_line(address: int, in_v: int, load: int, out_v: int) -> str:
     '''
     builds a line for output to the tv file
     '''
-    return u_int_to_bin_str(address, 16) + u_int_to_bin_str(
-        in_v, 16) + u_int_to_bin_str(load, 0) + '_' + u_int_to_bin_str(
-            out_v, 16) + '\n'
+    return int_to_bin_str(address,
+                          16) + int_to_bin_str(in_v, 16) + int_to_bin_str(
+                              load, 1) + '_' + int_to_bin_str(out_v, 16) + '\n'
 
 
 with open(OUTPUT_FILE, 'w') as f:

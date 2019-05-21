@@ -13,7 +13,7 @@ Algorithm:
 - count up to 65535
 - count up to 1000 again to check rollover
 '''
-from util import u_int_to_bin_str
+from util import int_to_bin_str
 
 OUTPUT_FILE = 'tvs/PC.tv'  # expects to be run from directory above this
 
@@ -40,9 +40,9 @@ def build_line(in_v: int, reset: int, load: int, inc: int,
     builds a line for output to the tv file
     '''
     next_out = PC_logic(in_v, reset, load, inc, previous_out_v)
-    line = u_int_to_bin_str(in_v, 16) + u_int_to_bin_str(
-        reset, 1) + u_int_to_bin_str(load, 1) + u_int_to_bin_str(
-            inc, 1) + '_' + u_int_to_bin_str(next_out, 16) + '\n'
+    line = int_to_bin_str(in_v, 16) + int_to_bin_str(
+        reset, 1) + int_to_bin_str(load, 1) + int_to_bin_str(
+            inc, 1) + '_' + int_to_bin_str(next_out, 16) + '\n'
     return (line, next_out)
 
 
