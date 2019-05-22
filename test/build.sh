@@ -11,3 +11,4 @@ python3 gen_tv/gen_alu_tv.py
 iverilog -o bin/PC_test PC_tb.v ../src/PC.v
 iverilog -o bin/RAM_test RAM_tb.v ../src/RAM.v
 iverilog -o bin/ROM_test ROM_tb.v ../src/ROM32K.v
+iverilog -o bin/ALU_test ALU_tb.v ../src/ALU.v
