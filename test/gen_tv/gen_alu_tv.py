@@ -14,6 +14,7 @@ from util import int_to_bin_str
 from random import randint
 
 OUTPUT_FILE = 'tvs/ALU.tv'  # expects to be run from directory above this
+N = 50  # number of times each function will be checked with random inputs for x and y
 
 # strings for function values in the format (zx)(nx)(zy)(ny)(f)(no), taken from page 56
 functions = [
@@ -37,7 +38,9 @@ functions = [
     '010101'  # f(x,y) = x|y
 ]
 
-N = 50  # number of times each function will be checked with random inputs for x and y
+
+def gen_rand_int() -> int:
+    return randint(-32768, 32767)
 
 
 def bitwise_not(val: int) -> str:
@@ -134,3 +137,11 @@ def ALU_logic_and_build_line(x: int, y: int, function: str) -> str:
     else:
         raise Exception('Unkown function')
     return input_str + out_str + zr(out_str) + nr(out_str) + '\n'
+
+
+with open(OUTPUT_FILE, 'w') as f:
+    for function in functions:
+        for i in range(N):
+            f.write(
+                ALU_logic_and_build_line(gen_rand_int(), gen_rand_int(),
+                                         function))
