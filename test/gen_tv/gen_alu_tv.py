@@ -1,5 +1,5 @@
 '''
-script for generating the testvector file for use in RAM_tb.v
+script for generating the testvector file for use in ALU_tb.v
 
 Format will be:
 (x)(y)(zx)(nx)(zy)(ny)(f)(no)_(out_v)(zr)(ng)
