@@ -10,33 +10,12 @@ For each combination of zx, nx, zy, ny, f, no listed on page 56 of the pdf of th
   - x = 0, y = 0
   - check N times with random integers in [-32768, 32767]
 '''
-from util import (int_to_bin_str, bitwise_not, bitwise_and, bitwise_or, zr, ng)
+from util import (int_to_bin_str, bitwise_not, bitwise_and, bitwise_or, zr, ng,
+                  alu_functions)
 from random import randint
 
 OUTPUT_FILE = 'tvs/ALU.tv'  # expects to be run from directory above this
 N = 1000  # number of times each function will be checked with random inputs for x and y
-
-# strings for function values in the format (zx)(nx)(zy)(ny)(f)(no), taken from page 56
-functions = [
-    '101010',  # f(x,y) = 0
-    '111111',  # f(x,y) = 1
-    '111010',  # f(x,y) = -1
-    '001100',  # f(x,y) = x
-    '110000',  # f(x,y) = y
-    '001101',  # f(x,y) = !x
-    '110001',  # f(x,y) = !y
-    '001111',  # f(x,y) = -x
-    '110011',  # f(x,y) = -y
-    '011111',  # f(x,y) = x+1
-    '110111',  # f(x,y) = y+1
-    '001110',  # f(x,y) = x-1
-    '110010',  # f(x,y) = y-1
-    '000010',  # f(x,y) = x+y
-    '010011',  # f(x,y) = x-y
-    '000111',  # f(x,y) = y-x
-    '000000',  # f(x,y) = x&y
-    '010101'  # f(x,y) = x|y
-]
 
 
 def ALU_logic_and_build_line(x: int, y: int, function: str) -> str:
@@ -88,7 +67,7 @@ def ALU_logic_and_build_line(x: int, y: int, function: str) -> str:
 
 
 with open(OUTPUT_FILE, 'w') as f:
-    for function in functions:
+    for function in alu_functions:
         for i in range(N):
             f.write(
                 ALU_logic_and_build_line(randint(-32768, 32767),

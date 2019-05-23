@@ -60,3 +60,26 @@ def zr(out_str: str) -> str:
 
 def ng(out_str: str) -> str:
     return out_str[0]
+
+
+# strings for function values in the format (zx)(nx)(zy)(ny)(f)(no), taken from page 56
+alu_functions = [
+    '101010',  # f(x,y) = 0
+    '111111',  # f(x,y) = 1
+    '111010',  # f(x,y) = -1
+    '001100',  # f(x,y) = x
+    '110000',  # f(x,y) = y
+    '001101',  # f(x,y) = !x
+    '110001',  # f(x,y) = !y
+    '001111',  # f(x,y) = -x
+    '110011',  # f(x,y) = -y
+    '011111',  # f(x,y) = x+1
+    '110111',  # f(x,y) = y+1
+    '001110',  # f(x,y) = x-1
+    '110010',  # f(x,y) = y-1
+    '000010',  # f(x,y) = x+y
+    '010011',  # f(x,y) = x-y
+    '000111',  # f(x,y) = y-x
+    '000000',  # f(x,y) = x&y
+    '010101'  # f(x,y) = x|y
+]
