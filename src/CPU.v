@@ -34,9 +34,9 @@ module CPU
    wire 	     is_j2;	// intermediate wire for determining j2 logic
    wire 	     is_j3;	// intermediate wire for determining j3 logic
    wire 	     jump;	// final wire determining whether to jump or not
-   wire [15:0] 	     alu_out;
-   wire 	     alu_zr;
-   wire 	     alu_ng;
+   wire signed [15:0] alu_out;
+   wire 	      alu_zr;
+   wire 	      alu_ng;
 
    // initialize ALU
    ALU _alu
