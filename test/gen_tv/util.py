@@ -1,5 +1,4 @@
 from numpy import binary_repr
-from random import randint
 
 
 def int_to_bin_str(val: int, width: int) -> str:
@@ -13,10 +12,6 @@ def int_to_bin_str(val: int, width: int) -> str:
         return retval[1:]
     else:
         return retval
-
-
-def gen_rand_int() -> int:
-    return randint(-32768, 32767)
 
 
 def bitwise_not(val: int) -> str:

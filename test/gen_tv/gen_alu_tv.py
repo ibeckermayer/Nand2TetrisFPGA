@@ -10,8 +10,8 @@ For each combination of zx, nx, zy, ny, f, no listed on page 56 of the pdf of th
   - x = 0, y = 0
   - check N times with random integers in [-32768, 32767]
 '''
-from util import (int_to_bin_str, gen_rand_int, bitwise_not, bitwise_and,
-                  bitwise_or, zr, ng)
+from util import (int_to_bin_str, bitwise_not, bitwise_and, bitwise_or, zr, ng)
+from random import randint
 
 OUTPUT_FILE = 'tvs/ALU.tv'  # expects to be run from directory above this
 N = 1000  # number of times each function will be checked with random inputs for x and y
@@ -91,5 +91,5 @@ with open(OUTPUT_FILE, 'w') as f:
     for function in functions:
         for i in range(N):
             f.write(
-                ALU_logic_and_build_line(gen_rand_int(), gen_rand_int(),
-                                         function))
+                ALU_logic_and_build_line(randint(-32768, 32767),
+                                         randint(-32768, 32767), function))
