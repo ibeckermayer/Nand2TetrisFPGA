@@ -19,10 +19,8 @@ N = 1000  # number of times each function will be checked with random inputs for
 alusim = ALUSimulator()
 
 with open(OUTPUT_FILE, 'w') as f:
-    with open('tester.txt', 'w') as t:
-        for func in alusim.funcs:
-            for i in range(N):
-                x = randint(-32768, 32767)
-                y = randint(-32768, 32767)
-                f.write(alusim.build_line(x, y, func))
-                t.write('x = {}, y = {}, func = {}\n'.format(x, y, func))
+    for func in alusim.funcs:
+        for i in range(N):
+            x = randint(-32768, 32767)
+            y = randint(-32768, 32767)
+            f.write(alusim.build_line(x, y, func))

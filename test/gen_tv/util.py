@@ -15,7 +15,7 @@ class BaseSimulator(object):
         '''
         converts an integer to it's twos complement representation of width=width
         val: number to be converted to binary
-        width: bit-width of the output string (e.g. 16-bits, 1-bit)
+        width: bit-width of the output string (e.g. WIDTH-bits, 1-bit)
         '''
         retval = binary_repr(val, width)
         if len(retval) > width:
@@ -59,7 +59,7 @@ class BaseSimulator(object):
     @classmethod
     def bitwise_and(cls, strx: str, stry: str) -> str:
         andval = ''
-        for i in range(16):
+        for i in range(WIDTH):
             if (strx[i] == '1' and stry[i] == '1'):
                 andval += '1'
             else:
@@ -69,7 +69,7 @@ class BaseSimulator(object):
     @classmethod
     def bitwise_or(cls, strx: str, stry: str) -> str:
         orval = ''
-        for i in range(16):
+        for i in range(WIDTH):
             if (strx[i] == '1' or stry[i] == '1'):
                 orval += '1'
             else:
@@ -91,24 +91,63 @@ class RAMSimulator(BaseSimulator):
         '''
         if (load):
             self.mem[address] = in_
+            # print(self.mem)
+            # print(self.mem.get(address))
 
         return self.mem.get(address)
 
     def build_line(self, address: int, in_: int, load: bool) -> str:
         '''
         builds a line for the testvector file
+        format: {address[WIDTH]}_{in[WIDTH]}_{load}_{out[WIDTH]}
         '''
-        address_s = self.int_to_bin_str(address, WIDTH)
-        in_s = self.int_to_bin_str(in_, WIDTH)
-        load_s = self.int_to_bin_str(load, WIDTH)
-        # build output
         out = self.simulate_step(address, in_, load)
-        if (out):
+        if (out != None):
             out_s = self.int_to_bin_str(out, WIDTH)
         else:
-            out_s = 'x' * 16  # verilog representation of unknown values
+            out_s = 'x' * WIDTH  # verilog representation of unknown values
+        address_s = self.int_to_bin_str(address, WIDTH)
+        in_s = self.int_to_bin_str(in_, WIDTH)
+        load_s = self.int_to_bin_str(load, 1)
 
-        return address_s + in_s + load_s + '_' + out_s + '\n'
+        return address_s + '_' + in_s + '_' + load_s + '_' + out_s + '\n'
+
+
+class ROMSimulator(BaseSimulator):
+    '''
+    class for simulating ROM
+    '''
+
+    def __init__(self):
+        self.mem = RAMSimulator()
+
+    def load(self, address: int, in_: int) -> str:
+        '''
+        pseudo function of real ROM, necessary to load memory into ROM
+        returns string of binary value loaded into ROM, to be used to build ROM input file
+        '''
+        return self.int_to_bin_str(self.mem.simulate_step(address, in_, True),
+                                   WIDTH) + '\n'
+
+    def simulate_step(self, address: int) -> int:
+        '''
+        takes in address, input value, and returns the expected output
+        '''
+        return self.mem.simulate_step(address, None, False)
+
+    def build_line(self, address: int) -> str:
+        '''
+        builds a line for the testvector file
+        format: {address[WIDTH]}_{out[WIDTH]}
+        '''
+        out = self.simulate_step(address)
+        if (out != None):
+            out_s = self.int_to_bin_str(out, WIDTH)
+        else:
+            out_s = 'x' * WIDTH  # verilog representation of unknown values
+        address_s = self.int_to_bin_str(address, WIDTH)
+
+        return address_s + '_' + out_s + '\n'
 
 
 class ALUSimulator(BaseSimulator):
@@ -147,7 +186,7 @@ class ALUSimulator(BaseSimulator):
             '''
             helper to build the tuple for each function
             '''
-            # account for overflow by normalizing to 16-bit interpretation
+            # account for overflow by normalizing to WIDTH-bit interpretation
             out_norm = self.bin_str_to_int(self.int_to_bin_str(out, WIDTH))
             return (out_norm, out_norm == 0, out_norm < 0)
 
@@ -202,10 +241,12 @@ class ALUSimulator(BaseSimulator):
 
     def build_line(self, x: int, y: int, func: str) -> str:
         '''
-        return (x[16])(y[16])(zx)(nx)(zy)(ny)(f)(no)_(out[16])(zr)(ng)
+        builds a line for the testvector file
+        format {x[WIDTH]}_{y[WIDTH]}_{zx, nx, zy, ny, f, no}_{out[WIDTH], zr, ng}
         '''
         out, zr, ng = self.simulate_step(x, y, func)
-        return self.int_to_bin_str(x, WIDTH) + self.int_to_bin_str(
-            y, WIDTH) + func + '_' + self.int_to_bin_str(
-                out, WIDTH) + self.int_to_bin_str(zr, 1) + self.int_to_bin_str(
-                    ng, 1) + '\n'
+        out_zr_ng_s = self.int_to_bin_str(out, WIDTH) + self.int_to_bin_str(
+            zr, 1) + self.int_to_bin_str(ng, 1)
+        x_s = self.int_to_bin_str(x, WIDTH)
+        y_s = self.int_to_bin_str(y, WIDTH)
+        return x_s + '_' + y_s + '_' + func + '_' + out_zr_ng_s + '\n'

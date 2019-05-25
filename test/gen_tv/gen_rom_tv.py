@@ -10,22 +10,18 @@ Format will be:
 Algorithm:
 - go through each address in ram and expect 32767 - address
 '''
-from util import int_to_bin_str
+from util import ROMSimulator
 
 # expects to be run from directory above this
 ROM_MEMORY_INPUT = 'tvs/ROM_input.tv'  # ROM32K must be loaded from a file
 OUTPUT_FILE = 'tvs/ROM.tv'  # file for the testbench
 
-# generate ROM_MEMORY_INPUT
+romsim = ROMSimulator()
+
 with open(ROM_MEMORY_INPUT, 'w') as f:
     for i in range(32768):
-        f.write(int_to_bin_str(32767 - i, 16) + '\n')
-
-
-def build_line(address: int, out_v: int) -> str:
-    return int_to_bin_str(address, 16) + '_' + int_to_bin_str(out_v, 16) + '\n'
-
+        f.write(romsim.load(i, 32767 - i))
 
 with open(OUTPUT_FILE, 'w') as f:
     for i in range(32768):
-        f.write(build_line(i, 32767 - i))
+        f.write(romsim.build_line(i))
