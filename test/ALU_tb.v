@@ -1,14 +1,14 @@
 module ALU_tb();
    reg clk;
-   reg  [15:0]  x;
-   reg  [15:0]  y;
+   reg signed [15:0]  x;
+   reg signed [15:0]  y;
    reg 	 zx;
    reg 	 nx;
    reg 	 zy;
    reg 	 ny;
    reg 	 f;
    reg 	 no;
-   wire  [15:0] out;
+   wire signed [15:0] out;
    wire 	 zr;
    wire 	 ng;
    reg [17:0] 	 out_expected; // expected output with extra places for zr and ng
@@ -52,7 +52,7 @@ module ALU_tb();
 	if ({out, zr, ng} != out_expected) // check that output is expected output
 	  begin			 // if error, display error
 	     $display("Error at test vector line %d", vectornum+1);
-	     $display("x=%b, y=%b, zx=%b, nx=%b, zy=%b, ny=%b, f=%b, no=%b", x, y, zx, nx, zy, ny, f, no);
+	     $display("x=%d, y=%d, zx=%b, nx=%b, zy=%b, ny=%b, f=%b, no=%b", x, y, zx, nx, zy, ny, f, no);
 	     $display("out=         %b", out);
 	     $display("zr=          %b", zr);
 	     $display("ng=          %b", ng);
