@@ -295,9 +295,28 @@ class CPUSimulator(BaseSimulator):
         self.alu = ALUSimulator()
         self.pc = PCSimulator()
 
-    def simulate_step(self, inM: int, instruction: str, reset: bool
-                      ) -> Tuple[outM:int, writeM:bool, addressM:int, pc:int]:
+    def simulate_step(self, inM: int, instruction: str,
+                      reset: bool) -> Tuple[int, bool, int, int]:
         '''
         simulates a single time step in CPU operation
+        returns (outM, writeM, addressM, pc)
         '''
-        pass
+
+        def _i(i: int) -> int:
+            '''
+            Converts index from instruction variable in CPU.v to index for instruction variable
+            in this file. Recall that the verilog file is reversed index, using this function
+            makes it easier to track logic between files
+            '''
+            return 15 - i
+
+        # simulate the ALU behavior first, since it is combinational and thus we should
+        # expect its dependents to make use of it's outputs on the current step
+        alu_out, alu_zr, alu_ng = self.alu.simulate_step(
+            self.D, inM if (instruction[_i(12)] == '1') else self.A,
+            instruction[_i(11):_i(6)])
+
+        # TODO: PC logic is a bit trickier to think about, since PC is synchronous on the same clock
+        # as the CPU.
+
+        return (None, None, None, None)
