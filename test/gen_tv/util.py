@@ -282,3 +282,22 @@ class ALUSimulator(BaseSimulator):
         x_s = self.int_to_bin_str(x, WIDTH)
         y_s = self.int_to_bin_str(y, WIDTH)
         return x_s + '_' + y_s + '_' + func + '_' + out_zr_ng_s + '\n'
+
+
+class CPUSimulator(BaseSimulator):
+    '''
+    class to simulate the CPU
+    '''
+
+    def __init__(self):
+        self.A = None  # int
+        self.D = None  # int
+        self.alu = ALUSimulator()
+        self.pc = PCSimulator()
+
+    def simulate_step(self, inM: int, instruction: str, reset: bool
+                      ) -> Tuple[outM:int, writeM:bool, addressM:int, pc:int]:
+        '''
+        simulates a single time step in CPU operation
+        '''
+        pass
