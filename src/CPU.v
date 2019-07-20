@@ -88,14 +88,15 @@ module CPU
    // They only affect the input and therefore output of the ALU, which on A-instructions can be junk values.
 
    // assign wires to analogous instruction bits
+   // 1010101010101010
    assign a = instruction[12];
    assign A_or_inM = (a) ? inM : A; //  // a-bit determines whether alu's y input is inM or A-register
-   assign c1_to_alu_zx = instruction[11];
-   assign c2_to_alu_nx = instruction[10];
-   assign c3_to_alu_zy = instruction[9];
-   assign c4_to_alu_ny = instruction[8];
-   assign c5_to_alu_f = instruction[7];
-   assign c6_to_alu_no = instruction[6];
+   assign c1 = instruction[11];
+   assign c2 = instruction[10];
+   assign c3 = instruction[9];
+   assign c4 = instruction[8];
+   assign c5 = instruction[7];
+   assign c6 = instruction[6];
 
    // Destination logic
    // Unlike ALU connections, destination logic is not instruction-type-agnostic.
