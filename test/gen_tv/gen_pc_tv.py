@@ -23,31 +23,31 @@ load = 1  # start with load 1, see that reset has precedence
 inc = 1  # start with inc 1, see that reset has precedence
 
 with open(OUTPUT_FILE, 'w') as f:
-  f.write(pcsim.build_line(in_v, reset, load, inc))
-
-  # count up to 1000 to check increment
-  reset = 0
-  load = 0
-  for i in range(1000):
     f.write(pcsim.build_line(in_v, reset, load, inc))
 
-  # reset again to check reset at arbitrary count
-  reset = 1
-  f.write(pcsim.build_line(in_v, reset, load, inc))
+    # count up to 1000 to check increment
+    reset = 0
+    load = 0
+    for i in range(1000):
+        f.write(pcsim.build_line(in_v, reset, load, inc))
 
-  # count up to 1000 again
-  reset = 0
-  load = 0
-  for i in range(1000):
+    # reset again to check reset at arbitrary count
+    reset = 1
     f.write(pcsim.build_line(in_v, reset, load, inc))
 
-  # load 65000 to test loading from arbitrary count
-  load = 1
-  in_v = 65000
-  f.write(pcsim.build_line(in_v, reset, load, inc))
+    # count up to 1000 again
+    reset = 0
+    load = 0
+    for i in range(1000):
+        f.write(pcsim.build_line(in_v, reset, load, inc))
 
-  # count up to 65535
-  # count up to 1000 again to check rollover
-  load = 0
-  for i in range(1001 + 535):
+    # load 65000 to test loading from arbitrary count
+    load = 1
+    in_v = 65000
     f.write(pcsim.build_line(in_v, reset, load, inc))
+
+    # count up to 65535
+    # count up to 1000 again to check rollover
+    load = 0
+    for i in range(1001 + 535):
+        f.write(pcsim.build_line(in_v, reset, load, inc))
