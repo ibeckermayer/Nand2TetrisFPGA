@@ -62,7 +62,7 @@ PC _pc
        .out(pc)
    );
 
-// The Hack assembly language specification denotes two distinct types of instructions:
+// The Hack assembly language specification denotes two distinct types of instruction
 // A-instruction: MSB == 0, loads the A register with value V = 0vvvvvvvvvvvvvvv
 // C-instruction: MSB == 1, instruction = xx a cccccc ddd jjj
 //                                             123456 123 123
@@ -71,7 +71,7 @@ PC _pc
 // A-instruction logic is simple: if MSB == 0, load the A register
 always @(posedge clk) begin
     if (!(instruction[15])) begin // if A-instruction
-        A < = instruction; // A gets the value V = 0vvvvvvvvvvvvvvv
+        A <= instruction; // A gets the value V = 0vvvvvvvvvvvvvvv
     end
 end
 
@@ -80,7 +80,7 @@ end
 
 // ALU connections
 // Connections to the ALU are self explanatory, and can derived from the specification in the book
-// These connections are instruction-type-agnostic, by which I mean they can be specified as continuous
+// These connections are [instruction]-type-agnostic, by which I mean they can be specified as continuous
 // assignments without regard for whether we're recieving an A-instruction or a C-instruction.
 // They only affect the input and therefore output of the ALU, which on A-instructions can be junk values.
 
