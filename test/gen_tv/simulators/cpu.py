@@ -89,3 +89,18 @@ class CPUSimulator(BaseSimulator):
       self._D = alu_out
 
     return (outM, writeM, addressM, self._pc)
+
+  def build_line(self, inM: int, instruction: str, reset: bool) -> str:
+    '''
+    format {inM[WIDTH], instruction[WIDTH], reset}_{outM[WIDTH], writeM, addressM[WIDTH], pc[WIDTH]}
+    '''
+    outM, writeM, addressM, pc = self.simulate_step(inM, instruction, reset)
+    return \
+      self.int_to_bin_str(inM, self.WIDTH) + \
+      instruction + \
+      self.int_to_bin_str(reset, 1) + \
+      '_' + \
+      self.int_to_bin_str(outM, self.WIDTH) + \
+      self.int_to_bin_str(writeM, 1) + \
+      self.int_to_bin_str(addressM, self.WIDTH) + \
+      self.int_to_bin_str(pc, self.WIDTH)
