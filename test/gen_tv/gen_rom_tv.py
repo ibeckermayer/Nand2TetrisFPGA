@@ -10,7 +10,7 @@ Format will be:
 Algorithm:
 - go through each address in ram and expect 32767 - address
 '''
-from util import ROMSimulator
+from simulators.rom import ROMSimulator
 
 # expects to be run from directory above this
 ROM_MEMORY_INPUT = 'tvs/ROM_input.tv'  # ROM32K must be loaded from a file
@@ -19,9 +19,9 @@ OUTPUT_FILE = 'tvs/ROM.tv'  # file for the testbench
 romsim = ROMSimulator()
 
 with open(ROM_MEMORY_INPUT, 'w') as f:
-    for i in range(32768):
-        f.write(romsim.load(i, 32767 - i))
+  for i in range(32768):
+    f.write(romsim.load(i, 32767 - i))
 
 with open(OUTPUT_FILE, 'w') as f:
-    for i in range(32768):
-        f.write(romsim.build_line(i))
+  for i in range(32768):
+    f.write(romsim.build_line(i))
