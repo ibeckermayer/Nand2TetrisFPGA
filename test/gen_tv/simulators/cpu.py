@@ -1,4 +1,6 @@
 from simulators import BaseSimulator
+from simulators.alu import ALUSimulator
+from simulators.pc import PCSimulator
 from typing import Tuple
 
 
@@ -103,4 +105,4 @@ class CPUSimulator(BaseSimulator):
       self.int_to_bin_str(outM, self.WIDTH) + \
       self.int_to_bin_str(writeM, 1) + \
       self.int_to_bin_str(addressM, self.WIDTH) + \
-      self.int_to_bin_str(pc, self.WIDTH)
+      self.int_to_bin_str(pc, self.WIDTH) + '\n'
