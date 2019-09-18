@@ -16,40 +16,24 @@ class CPUSimulator(BaseSimulator):
     return 15 - i
 
   def __init__(self):
-    # TODO: ought to be set to a better default value
-    self._A: int = None
-    self._D: int = None  # TODO: ought to be set to a better default value
+    self._A: int = 0
+    self._D: int = 0
     self._ALU: ALUSimulator = ALUSimulator()
     self._PC: PCSimulator = PCSimulator()
+    self._pc: int = 0  # PC output
 
   def simulate_step(self, inM: int, instruction: str,
                     reset: bool) -> Tuple[int, bool, int, int]:
     '''
     simulates a single time step in CPU operation
     returns (outM, writeM, addressM, pc)
-
-    TODO: Idea for an approach: first push everything through, then set everything clocked
     '''
+
     # _i(13)/_i(14) -- TODO: conspicuous that I can't find this being used in CPU.v.
-    # This should be investigated when you have access to the book again
 
-    # The first thing we should do is decide whether this is an A instruction or a C instruction
-    # since that distinction largely determines the behavior of the CPU
-    is_A = instruction[self._i(15)] == '0'
-    is_C = not is_A
-
-    # ## TODO: left off here
-
-    # Let's do the simplest thing first: if this is an instruction, the value is loaded into the A register
-    if instruction[self._i(15)] == '0':
-      self._A = self.bin_str_to_int(instruction)
-
-    # Next, we can simulate a step on all of the combinational logic
-
-    ############################################################################################
-    # Start by fleshing all the combinational logic out, meaning (???):
-    # If A has an input B, set B first.
+    # ALU logic, which is run every step regardless of instruction type
     a = instruction[self._i(12)]
+    A_or_inM = inM if (a == '1') else self._A
     c1 = instruction[self._i(11)]
     c2 = instruction[self._i(10)]
     c3 = instruction[self._i(9)]
@@ -57,33 +41,51 @@ class CPUSimulator(BaseSimulator):
     c5 = instruction[self._i(7)]
     c6 = instruction[self._i(6)]
     c = c1 + c2 + c3 + c4 + c5 + c6
-    d1 = instruction[self._i(5)] if instruction[self._i(15)] == '1' else '0'
-    d2 = instruction[self._i(4)] if instruction[self._i(15)] == '1' else '0'
-    d3 = instruction[self._i(3)] if instruction[self._i(15)] == '1' else '0'
-    j1 = instruction[self._i(2)]
-    j2 = instruction[self._i(1)]
-    j3 = instruction[self._i(0)]
-
     alu_out, alu_zr, alu_ng = self._ALU.simulate_step(self._D, A_or_inM, c)
-    is_j1 = (True if alu_ng else
-             False) if j1 else False  # is j1 true and alu_out < 0?
-    is_j2 = (True if alu_zr else
-             False) if j2 else False  # is j2 true and alu_out = 0?
-    is_j3 = (True if (not (alu_ng) and not (alu_zr)) else
-             False) if j3 else False  # is j3 true and alu_out > 0?
-    jump = (is_j1 or is_j2 or is_j3)
-    outM = alu_out
-    writeM = d3 == '1'
 
-    # Now flesh out all the sequential logic, meaning (???):
-    # If A has an input B, set B first.
-    # program counter gets incremented or set (from jump instruction)
-    self._A = self.bin_str_to_int(instruction) if instruction[self._i(
-        15)] == '0' else alu_out if d1 == '1' else self._A
+    # Set internal variables that will help determine the control logic of dependent on the dest and jump bits.
+    is_A_instruction: bool = instruction[self._i(15)] == '0'
+    is_C_instruction: bool = not is_A_instruction
+
+    # Calculate destination bits, setting them all to zero (don't save anything) if this is an A instruction so that nothing in
+    # memory is mistakenly overwritten by an A instruction that happens to say so if interpreted as a C instruction.
+    d1 = instruction[self._i(5)] if is_C_instruction else '0'
+    d2 = instruction[self._i(4)] if is_C_instruction else '0'
+    d3 = instruction[self._i(3)] if is_C_instruction else '0'
+
+    # Similar logic to above for the jump bits.
+    j1 = instruction[self._i(2)] if is_C_instruction else '0'
+    j2 = instruction[self._i(1)] if is_C_instruction else '0'
+    j3 = instruction[self._i(0)] if is_C_instruction else '0'
+
+    # Calculate if we should jump.
+    # is j1 true and alu_out < 0?
+    is_j1 = (True if alu_ng else False) if j1 else False
+    # is j2 true and alu_out = 0?
+    is_j2 = (True if alu_zr else False) if j2 else False
+    # is j3 true and alu_out > 0?
+    is_j3 = (True if
+             (not (alu_ng) and not (alu_zr)) else False) if j3 else False
+    jump = (is_j1 or is_j2 or is_j3)
+
+    # Set all the outputs for this step.
+    # addressM of this step is always whatever was in A in the last step.
+    addressM: int = self._A
+    # pc for this step is whatever the PC was set to or incremented to last step.
+    pc: int = self._pc
+    outM: int = alu_out
+    writeM: bool = d3 is '1'
+
+    # Now that we've calculated all the combinational logic, we are ready to calculate all the sequential logic.
+    if (is_A_instruction):
+      self._A = self.bin_str_to_int(instruction)
+    elif (d1 == '1'):
+      self._A = alu_out
+
     self._pc = self._PC.simulate_step(
         in_=self._A, reset=reset, load=jump, inc=1)
-    addressM = self._A
-    A_or_inM = inM if (a == '1') else self._A
-    self._D = alu_out if d2 == '1' else self._D
+
+    if (d2 == '1'):
+      self._D = alu_out
 
     return (outM, writeM, addressM, self._pc)
