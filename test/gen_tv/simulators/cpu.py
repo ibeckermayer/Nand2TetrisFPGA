@@ -7,7 +7,7 @@ class CPUSimulator(BaseSimulator):
   class to simulate the CPU
   '''
 
-  def _i(cls, i: int) -> int:
+  def _i(self, i: int) -> int:
     '''
       Converts index from instruction variable in CPU.v to index for instruction variable
       in this file. Recall that the verilog file is reversed index, using this function
