@@ -331,7 +331,7 @@ class CPUSimulator(BaseSimulator):
     j1 = instruction[self._i(2)]
     j2 = instruction[self._i(1)]
     j3 = instruction[self._i(0)]
-    A_or_inM = inM if (a == '1') else self._A
+    
     alu_out, alu_zr, alu_ng = self._ALU.simulate_step(self._D, A_or_inM, c)
     is_j1 = (True if alu_ng else
              False) if j1 else False  # is j1 true and alu_out < 0?
@@ -344,13 +344,14 @@ class CPUSimulator(BaseSimulator):
     writeM = d3 == '1'
 
     # Now flesh out all the sequential logic, meaning (???):
-    # If A has an input B, set A first.
+    # If A has an input B, set B first.
     # program counter gets incremented or set (from jump instruction)
+    self._A = self.bin_str_to_int(instruction) if instruction[self._i(
+        15)] == '0' else alu_out if d1 == '1' else self._A
     self._pc = self._PC.simulate_step(
         in_=self._A, reset=reset, load=jump, inc=1)
     addressM = self._A
-    self._A = self.bin_str_to_int(instruction) if instruction[self._i(
-        15)] == '0' else alu_out if d1 == '1' else self._A
+    A_or_inM = inM if (a == '1') else self._A
     self._D = alu_out if d2 == '1' else self._D
 
     return (outM, writeM, addressM, self._pc)
