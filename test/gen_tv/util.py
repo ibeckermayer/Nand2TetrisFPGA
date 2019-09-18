@@ -26,10 +26,9 @@ class BaseSimulator(object):
   @classmethod
   def bin_str_to_int(cls, bin_str: str) -> int:
     '''
-        inverse of int_to_bin_str
-        NOTE: assumes bin_str is twos complement format if len(bin_str) > 1
-
-        '''
+    inverse of int_to_bin_str
+    NOTE: assumes bin_str is twos complement format if len(bin_str) > 1
+    '''
     if (len(bin_str) == 1 or bin_str[0] == '0'):
       # single bit or positive value
       return int(bin_str, 2)
@@ -294,15 +293,11 @@ class CPUSimulator(BaseSimulator):
     return 15 - i
 
   def __init__(self):
-    self._A: Optional[
-        int] = None  # TODO: ought to be set to a better default value
+    # TODO: ought to be set to a better default value
+    self._A: int = None
     self._D: int = None  # TODO: ought to be set to a better default value
     self._ALU: ALUSimulator = ALUSimulator()
     self._PC: PCSimulator = PCSimulator()
-    self._outM: int = None
-    self._writeM: bool = None
-    self._addressM: int = None
-    self._pc: int = None
 
   def simulate_step(self, inM: int, instruction: str,
                     reset: bool) -> Tuple[int, bool, int, int]:
@@ -315,6 +310,20 @@ class CPUSimulator(BaseSimulator):
     # _i(13)/_i(14) -- TODO: conspicuous that I can't find this being used in CPU.v.
     # This should be investigated when you have access to the book again
 
+    # The first thing we should do is decide whether this is an A instruction or a C instruction
+    # since that distinction largely determines the behavior of the CPU
+    is_A = instruction[self._i(15)] == '0'
+    is_C = not is_A
+
+    # ## TODO: left off here
+
+    # Let's do the simplest thing first: if this is an instruction, the value is loaded into the A register
+    if instruction[self._i(15)] == '0':
+      self._A = self.bin_str_to_int(instruction)
+
+    # Next, we can simulate a step on all of the combinational logic
+
+    ############################################################################################
     # Start by fleshing all the combinational logic out, meaning (???):
     # If A has an input B, set B first.
     a = instruction[self._i(12)]
@@ -331,7 +340,7 @@ class CPUSimulator(BaseSimulator):
     j1 = instruction[self._i(2)]
     j2 = instruction[self._i(1)]
     j3 = instruction[self._i(0)]
-    
+
     alu_out, alu_zr, alu_ng = self._ALU.simulate_step(self._D, A_or_inM, c)
     is_j1 = (True if alu_ng else
              False) if j1 else False  # is j1 true and alu_out < 0?
