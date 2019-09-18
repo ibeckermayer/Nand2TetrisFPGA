@@ -2,6 +2,10 @@ from simulators import BaseSimulator
 from typing import Tuple
 
 
+class UnkownALUFunction(Exception):
+  pass
+
+
 class ALUSimulator(BaseSimulator):
   '''
     class for simulating the ALU
@@ -90,7 +94,7 @@ class ALUSimulator(BaseSimulator):
                   self.int_to_bin_str(x, self.WIDTH),
                   self.int_to_bin_str(y, self.WIDTH))))
     else:
-      raise Exception('Unkown function')
+      raise UnkownALUFunction(f'Unkown function: {func}')
 
   def build_line(self, x: int, y: int, func: str) -> str:
     '''
