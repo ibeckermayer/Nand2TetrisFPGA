@@ -37,7 +37,7 @@ end // initial begin
 always @(posedge clk)
 begin
     #1;			 // wait time for tick to register
-    if ({out, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected}) // check that output is expected output
+    if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected}) // check that output is expected output
     begin			 // if error, display error
         $display("Error at test vector line %d", vectornum+1);
         $display("inM=%d, instruction=%b, reset=%b", inM, instruction, reset);

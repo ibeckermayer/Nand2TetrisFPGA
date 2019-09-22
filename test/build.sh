@@ -13,3 +13,4 @@ iverilog -o bin/PC_test PC_tb.v ../src/PC.v
 iverilog -o bin/RAM_test RAM_tb.v ../src/RAM.v
 iverilog -o bin/ROM_test ROM_tb.v ../src/ROM32K.v
 iverilog -o bin/ALU_test ALU_tb.v ../src/ALU.v
+iverilog -o bin/CPU_test CPU_tb.v ../src/CPU.v ../src/ALU.v ../src/PC.v
