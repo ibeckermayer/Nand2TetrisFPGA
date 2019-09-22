@@ -59,7 +59,10 @@ with open(OUTPUT_FILE, 'w') as f:
   while i < N:
     inM = randint(-32768, 32767)
     instruction = gen_random_instruction()
-    reset = bool(randint(0, 1))
+    if (i == 0):
+      reset = True
+    else:
+      reset = bool(randint(0, 1))
     try:
       f.write(cpusim.build_line(inM, instruction, reset))
       i += 1
