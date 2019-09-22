@@ -48,6 +48,11 @@ begin
     $display("pc=                 %d", pc);
     $display("pc_expected=        %d", pc_expected);
 
+    if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected})
+    begin
+        errors = errors + 1;
+    end
+
     // if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected}) // check that output is expected output
     // begin			 // if error, display error
     //     $display("Error at test vector line %d", vectornum+1);
@@ -84,7 +89,7 @@ end // always @ (posedge clk)
 always @(negedge clk)
 begin
     vectornum = vectornum + 1;
-    if (vectornum > 10000-1)
+    if (vectornum > 10000-1 || errors > 0)
     begin
         // $display("%d tests completed with %d errors", vectornum, errors);
         $display("%d outM_errors", outM_errors);
