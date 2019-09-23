@@ -40,19 +40,20 @@ def gen_random_instruction() -> str:
   '''
   possible_instruction = cpusim.int_to_bin_str(
       randint(-32768, 32767), cpusim.WIDTH)
-  if possible_instruction[0] == '0':
-    # if this is an A instruction go ahead and return it right away
-    return possible_instruction
-  else:
-    # else this is a C instruction, possible_instruction[1:3] == '1'
-    # per the specification 4.2.3 The C-Instruction
-    possible_instruction = possible_instruction[
-        0] + '11' + possible_instruction[3:]
-    # a[4:10] must be a valid function for the alu
-    possible_instruction = possible_instruction[0:4] + \
-      ALUSimulator.funcs[randint(0, len(ALUSimulator.funcs) - 1)] + \
-      possible_instruction[10:]
-    return possible_instruction
+  # if possible_instruction[0] == '0':
+  #   # if this is an A instruction go ahead and return it right away
+  #   return possible_instruction
+  # else:
+  #   # else this is a C instruction, possible_instruction[1:3] == '1'
+  #   # per the specification 4.2.3 The C-Instruction
+  #   possible_instruction = possible_instruction[
+  #       0] + '11' + possible_instruction[3:]
+  #   # a[4:10] must be a valid function for the alu
+  #   possible_instruction = possible_instruction[0:4] + \
+  #     ALUSimulator.funcs[randint(0, len(ALUSimulator.funcs) - 1)] + \
+  #     possible_instruction[10:]
+  #   return possible_instruction
+  return '0' + possible_instruction[1:]
 
 
 with open(OUTPUT_FILE, 'w') as f:
