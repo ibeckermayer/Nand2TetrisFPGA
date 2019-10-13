@@ -102,9 +102,9 @@ assign c6       = instruction[6];
 // register. For this reason, our d wires will only be set to their corresponding d values
 // if we are dealing with a C-instruction, otherwise they will all be set to 0 which means
 // "the value is not stored anywhere" according to Hack language semantics.
-assign d1 = (instruction[15]) ? instruction[5] : 0;
-assign d2 = (instruction[15]) ? instruction[4] : 0;
-assign d3 = (instruction[15]) ? instruction[3] : 0;
+assign d1 = (instruction[15]) ? instruction[5] : 1'b0;
+assign d2 = (instruction[15]) ? instruction[4] : 1'b0;
+assign d3 = (instruction[15]) ? instruction[3] : 1'b0;
 
 // Memory logic can be combinational assignment, registers are clocked RAM module
 assign outM = alu_out;	// outM connects to ALU out
@@ -123,14 +123,14 @@ end
 
 // Jump logic
 // Similar to destination logic, jump logic is not instruction-type-agnostic.
-assign j1 = (instruction[15]) ? instruction[2] : 0;
-assign j2 = (instruction[15]) ? instruction[1] : 0;
-assign j3 = (instruction[15]) ? instruction[0] : 0;
+assign j1 = (instruction[15]) ? instruction[2] : 1'b0;
+assign j2 = (instruction[15]) ? instruction[1] : 1'b0;
+assign j3 = (instruction[15]) ? instruction[0] : 1'b0;
 
 // logic specific to each j value, according to the specification
-assign is_j1 = (j1) ? ((alu_ng) ? 1 : 0) : 0; // is j1 true and alu_out < 0?
-assign is_j2 = (j2) ? ((alu_zr) ? 1 : 0) : 0; // is j2 true and alu_out = 0?
-assign is_j3 = (j3) ? ((!(alu_ng) && !(alu_zr)) ? 1 : 0) : 0; // is j3 true and alu_out > 0?
+assign is_j1 = (j1) ? ((alu_ng) ? 1'b1 : 1'b0) : 1'b0; // is j1 true and alu_out < 0?
+assign is_j2 = (j2) ? ((alu_zr) ? 1'b1 : 1'b0) : 1'b0; // is j2 true and alu_out = 0?
+assign is_j3 = (j3) ? ((!(alu_ng) && !(alu_zr)) ? 1'b1 : 1'b0) : 1'b0; // is j3 true and alu_out > 0?
 
 // final jump determination, fed into PC
 assign jump = (is_j1 || is_j2 || is_j3);
