@@ -31,6 +31,10 @@ OUTPUT_FILE = 'tvs/CPU.tv'  # expects to be run from directory above this
 N = 10000
 i = 0
 
+# Flag in case you only want to generate A instructions to help
+# narrow down the debugging process
+GENERATE_ONLY_A_INSTRUCTIONS = False
+
 cpusim = CPUSimulator()
 
 
@@ -40,6 +44,10 @@ def gen_random_instruction() -> str:
   '''
   possible_instruction = cpusim.int_to_bin_str(
       randint(-32768, 32767), cpusim.WIDTH)
+
+  if GENERATE_ONLY_A_INSTRUCTIONS:
+    return '0' + possible_instruction[1:]
+
   if possible_instruction[0] == '0':
     # if this is an A instruction go ahead and return it right away
     return possible_instruction
