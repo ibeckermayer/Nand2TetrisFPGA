@@ -116,19 +116,15 @@ assign is_j3 = (j3) ? ((!(alu_ng) && !(alu_zr)) ? 1'b1 : 1'b0) : 1'b0; // is j3 
 // final jump determination, fed into PC
 assign jump = (is_j1 || is_j2 || is_j3);
 
-// A-instruction logic
-
-always @(posedge clk) begin
-
-end
-
 // register logic
 always @(posedge clk) begin
     // A-instruction logic is simple: if MSB == 0, load the A register
     if (!(instruction[15])) begin // if A-instruction
         A <= instruction; // A gets the value V = 0vvvvvvvvvvvvvvv
     end
-    if (d1) begin // effectively else-if (d1), since (d1) requires instruction[15] == 1
+    // C-instruction logic
+    // effectively else-if, since (d1/d2) requires instruction[15] == 1
+    if (d1) begin
         A <= alu_out;
     end
     if (d2) begin
