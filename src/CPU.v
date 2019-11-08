@@ -67,17 +67,6 @@ PC _pc
 // C-instruction: MSB == 1, instruction = xx a cccccc ddd jjj
 //                                             123456 123 123
 
-// A-instruction logic
-// A-instruction logic is simple: if MSB == 0, load the A register
-always @(posedge clk) begin
-    if (!(instruction[15])) begin // if A-instruction
-        A <= instruction; // A gets the value V = 0vvvvvvvvvvvvvvv
-    end
-end
-
-// C-instruction logic
-// C-instruction logic is considerably more involved. See chapter 4 in the book for reference
-
 // ALU connections
 // Connections to the ALU are self explanatory, and can derived from the specification in the book
 // These connections are [instruction]-type-agnostic, by which I mean they can be specified as continuous
@@ -111,15 +100,7 @@ assign outM = alu_out;	// outM connects to ALU out
 assign addressM = A;		// A specifies address
 assign writeM = d3;		// d3 determines whether M[A] = alu_out
 
-// register logic
-always @(posedge clk) begin
-    if (d1) begin
-        A <= alu_out;
-    end
-    if (d2) begin
-        D <= alu_out;
-    end
-end
+
 
 // Jump logic
 // Similar to destination logic, jump logic is not instruction-type-agnostic.
@@ -134,5 +115,31 @@ assign is_j3 = (j3) ? ((!(alu_ng) && !(alu_zr)) ? 1'b1 : 1'b0) : 1'b0; // is j3 
 
 // final jump determination, fed into PC
 assign jump = (is_j1 || is_j2 || is_j3);
+
+// A-instruction logic
+
+always @(posedge clk) begin
+
+end
+
+// register logic
+always @(posedge clk) begin
+    // A-instruction logic is simple: if MSB == 0, load the A register
+    if (!(instruction[15])) begin // if A-instruction
+        A <= instruction; // A gets the value V = 0vvvvvvvvvvvvvvv
+    end
+    if (d1) begin // effectively else-if (d1), since (d1) requires instruction[15] == 1
+        A <= alu_out;
+    end
+    if (d2) begin
+        D <= alu_out;
+    end
+    if (reset) begin
+        // Will override everything else, since within an always block the order of the statements matter
+        // see: https://electronics.stackexchange.com/questions/351103/how-does-verilog-evaluate-conflicting-assignments
+        A <= 16'd0;
+        D <= 16'd0;
+    end
+end
 
 endmodule // CPU
