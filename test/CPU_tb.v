@@ -28,7 +28,7 @@ end
 
 initial
 begin
-    clk = 0;
+    clk = 1;
     $readmemb("tvs/CPU.tv", testvectors);
     vectornum= 0; errors = 0; outM_errors = 0; writeM_errors = 0; addressM_errors = 0; pc_errors = 0;
     {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected} = testvectors[vectornum];
@@ -37,16 +37,24 @@ end // initial begin
 always @(posedge clk)
 begin
     #1;			 // wait time for tick to register
-    $display("Test vector line %d", vectornum+1);
-    $display("inM=%d, instruction=%b, reset=%b", inM, instruction, reset);
-    $display("outM=               %d", outM);
-    $display("outM_expected=      %d", outM_expected);
+    $display("inM=%d, instruction=%b (%d), reset=%b", inM, instruction, instruction, reset);
+    $display("CPU.D=              %d", DUT.D);
+    $display("CPU.A=              %d", DUT.A);
+    $display("pc=                 %d", pc);
+    $display("pc_expected=        %d", pc_expected);
     $display("writeM=             %b", writeM);
     $display("writeM_expected=    %b", writeM_expected);
     $display("addressM=           %d", addressM);
     $display("addressM_expected=  %d", addressM_expected);
-    $display("pc=                 %d", pc);
-    $display("pc_expected=        %d", pc_expected);
+    $display("outM=               %d", outM);
+    $display("outM_expected=      %d", outM_expected);
+    $display("");
+
+
+    if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected})
+    begin
+        errors = errors + 1;
+    end
 
     // if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected}) // check that output is expected output
     // begin			 // if error, display error
@@ -84,7 +92,7 @@ end // always @ (posedge clk)
 always @(negedge clk)
 begin
     vectornum = vectornum + 1;
-    if (vectornum > 10000-1)
+    if (vectornum > 10000-1 || errors > 9)
     begin
         // $display("%d tests completed with %d errors", vectornum, errors);
         $display("%d outM_errors", outM_errors);
