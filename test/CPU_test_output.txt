@@ -1,0 +1,221 @@
+WARNING: CPU_tb.v:32: $readmemb: Standard inconsistency, following 1364-2005.
+inM=31556, instruction=1111101010010100 (64148), reset=1
+CPU.D=                  0
+CPU.A=                  0
+pc=                     0
+pc_expected=            0
+writeM=             0
+writeM_expected=    0
+addressM=               0
+addressM_expected=      0
+outM=                   0
+outM_expected=          0
+
+inM=46492, instruction=1111110111110001 (65009), reset=0
+CPU.D=              46493
+CPU.A=              46493
+pc=                     1
+pc_expected=            1
+writeM=             0
+writeM_expected=    0
+addressM=           46493
+addressM_expected=  46493
+outM=               46493
+outM_expected=      46493
+
+inM=45579, instruction=1110010011100000 (58592), reset=0
+CPU.D=              46493
+CPU.A=                  0
+pc=                     2
+pc_expected=            2
+writeM=             0
+writeM_expected=    0
+addressM=               0
+addressM_expected=      0
+outM=               46493
+outM_expected=          0
+
+inM=15225, instruction=1111000000100100 (61476), reset=0
+CPU.D=              46493
+CPU.A=              12569
+pc=                     3
+pc_expected=            3
+writeM=             0
+writeM_expected=    0
+addressM=           12569
+addressM_expected=  12569
+outM=               12569
+outM_expected=      12569
+
+inM=59300, instruction=1110010101001110 (58702), reset=0
+CPU.D=              46493
+CPU.A=              12569
+pc=                 12569
+pc_expected=        12569
+writeM=             1
+writeM_expected=    1
+addressM=           12569
+addressM_expected=  12569
+outM=               46493
+outM_expected=      46493
+
+inM=17950, instruction=0011001101000110 (13126), reset=0
+CPU.D=              46493
+CPU.A=              13126
+pc=                 12570
+pc_expected=        12570
+writeM=             0
+writeM_expected=    0
+addressM=           13126
+addressM_expected=  13126
+outM=               19042
+outM_expected=      19042
+
+inM=33046, instruction=0100000111000110 (16838), reset=0
+CPU.D=              46493
+CPU.A=              16838
+pc=                 12571
+pc_expected=        12571
+writeM=             0
+writeM_expected=    0
+addressM=           16838
+addressM_expected=  16838
+outM=               35881
+outM_expected=      35881
+
+inM=35331, instruction=1111111111110010 (65522), reset=0
+CPU.D=                  1
+CPU.A=                  1
+pc=                 12572
+pc_expected=        12572
+writeM=             0
+writeM_expected=    0
+addressM=               1
+addressM_expected=      1
+outM=                   1
+outM_expected=          1
+
+inM=55036, instruction=1110111010111000 (61112), reset=0
+CPU.D=              65535
+CPU.A=              65535
+pc=                 12573
+pc_expected=        12573
+writeM=             1
+writeM_expected=    1
+addressM=           65535
+addressM_expected=  65535
+outM=               65535
+outM_expected=      65535
+
+inM=38089, instruction=1110000010010011 (57491), reset=0
+CPU.D=              65534
+CPU.A=              65535
+pc=                 12574
+pc_expected=        17443
+writeM=             0
+writeM_expected=    0
+addressM=           65535
+addressM_expected=  17443
+outM=               65533
+outM_expected=      17442
+
+inM=17845, instruction=0100110011111010 (19706), reset=0
+CPU.D=              65534
+CPU.A=              19706
+pc=                 12575
+pc_expected=        17444
+writeM=             0
+writeM_expected=    0
+addressM=           19706
+addressM_expected=  19706
+outM=               45830
+outM_expected=      45830
+
+inM=52259, instruction=1110110011010001 (60625), reset=0
+CPU.D=              45830
+CPU.A=              19706
+pc=                 12576
+pc_expected=        17445
+writeM=             0
+writeM_expected=    0
+addressM=           19706
+addressM_expected=  19706
+outM=               45830
+outM_expected=      45830
+
+inM= 2657, instruction=1111001111001100 (62412), reset=0
+CPU.D=              45830
+CPU.A=              19706
+pc=                 12577
+pc_expected=        17446
+writeM=             1
+writeM_expected=    1
+addressM=           19706
+addressM_expected=  26670
+outM=               19706
+outM_expected=      19706
+
+inM=11130, instruction=0000111111000010 ( 4034), reset=0
+CPU.D=              45830
+CPU.A=               4034
+pc=                 12578
+pc_expected=        17447
+writeM=             0
+writeM_expected=    0
+addressM=            4034
+addressM_expected=   4034
+outM=                   1
+outM_expected=          1
+
+inM=63442, instruction=1111110001011011 (64603), reset=0
+CPU.D=               2093
+CPU.A=               4034
+pc=                  4034
+pc_expected=        32067
+writeM=             1
+writeM_expected=    1
+addressM=            4034
+addressM_expected=  32067
+outM=                2093
+outM_expected=       2093
+
+inM=57597, instruction=0000000111010110 (  470), reset=0
+CPU.D=               2093
+CPU.A=                470
+pc=                  4035
+pc_expected=        32068
+writeM=             0
+writeM_expected=    0
+addressM=             470
+addressM_expected=    470
+outM=               63913
+outM_expected=      63913
+
+inM=24546, instruction=0010010011110000 ( 9456), reset=0
+CPU.D=               2093
+CPU.A=               9456
+pc=                  4036
+pc_expected=        32069
+writeM=             0
+writeM_expected=    0
+addressM=            9456
+addressM_expected=   9456
+outM=               58173
+outM_expected=      58173
+
+inM=27003, instruction=0110010011101011 (25835), reset=0
+CPU.D=               2093
+CPU.A=              25835
+pc=                  4037
+pc_expected=        32070
+writeM=             0
+writeM_expected=    0
+addressM=           25835
+addressM_expected=  25835
+outM=               41794
+outM_expected=      41794
+
+         2 outM_errors
+         0 writeM_errors
+         3 addressM_errors
+         9 pc_errors
