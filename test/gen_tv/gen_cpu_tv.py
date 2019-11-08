@@ -62,7 +62,9 @@ with open(OUTPUT_FILE, 'w') as f:
     if (i == 0):
       reset = True
     else:
-      reset = bool(randint(0, 1))
+      # TODO: make reset = bool(randint(0, 1)), this
+      # current setup is just easier for debugging purposes
+      reset = False
     try:
       f.write(cpusim.build_line(inM, instruction, reset))
       i += 1
