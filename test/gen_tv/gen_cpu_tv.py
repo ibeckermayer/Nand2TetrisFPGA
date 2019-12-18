@@ -28,7 +28,7 @@ from simulators.alu import ALUSimulator, UnkownALUFunction
 from random import randint
 
 OUTPUT_FILE = 'tvs/CPU.tv'  # expects to be run from directory above this
-N = 10000
+N = 100000
 i = 0
 
 # Flag in case you only want to generate A instructions to help
