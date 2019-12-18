@@ -96,7 +96,7 @@ begin
     vectornum = vectornum + 1;
     if (vectornum > 10000-1 || errors > 9)
     begin
-        // $display("%d tests completed with %d errors", vectornum, errors);
+        $display("%d tests completed with %d errors", vectornum, errors);
         $display("%d outM_errors", outM_errors);
         $display("%d writeM_errors", writeM_errors);
         $display("%d addressM_errors", addressM_errors);
