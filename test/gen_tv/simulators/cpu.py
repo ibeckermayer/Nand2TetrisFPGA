@@ -25,7 +25,7 @@ class CPUSimulator(BaseSimulator):
     self._pc: int = 0  # PC output
 
   def simulate_step(self, inM: int, instruction: str,
-                    reset: bool) -> Tuple[int, bool, int, int]:
+                    reset: bool) -> Tuple[int, bool, int, int, int, int, int]:
     '''
     simulates a single time step in CPU operation
     returns (outM, writeM, addressM, pc)
@@ -34,10 +34,6 @@ class CPUSimulator(BaseSimulator):
     # Set internal variables that will help determine the control logic of dependent on the dest and jump bits.
     is_A_instruction: bool = instruction[self._i(15)] == '0'
     is_C_instruction: bool = not is_A_instruction
-
-    # If its an A-instruction, instruction is registered into A
-    if (is_A_instruction):
-      self._A = self.bin_str_to_int(instruction)
 
     # ALU logic, which is run every step regardless of instruction type
     a = instruction[self._i(12)]
@@ -83,6 +79,11 @@ class CPUSimulator(BaseSimulator):
     if (d2 == '1'):
       self._D = alu_out
 
+    # If its an A-instruction, instruction is registered into A
+    if (is_A_instruction):
+      self._A = self.bin_str_to_int(instruction)
+
+    # Reset overrides everything else
     if reset:
       self._A = 0
       self._D = 0
@@ -93,13 +94,14 @@ class CPUSimulator(BaseSimulator):
     addressM: int = self._A
     pc: int = self._pc
 
-    return (outM, writeM, addressM, self._pc)
+    return (outM, writeM, addressM, self._pc, alu_out, self._A, self._D)
 
   def build_line(self, inM: int, instruction: str, reset: bool) -> str:
     '''
-    format {inM[WIDTH], instruction[WIDTH], reset}_{outM[WIDTH], writeM, addressM[WIDTH], pc[WIDTH]}
+    format {inM[WIDTH], instruction[WIDTH], reset}_{outM[WIDTH], writeM, addressM[WIDTH], pc[WIDTH]_{alu_out[WIDTH], A[WIDTH], D[WIDTH]}}
     '''
-    outM, writeM, addressM, pc = self.simulate_step(inM, instruction, reset)
+    outM, writeM, addressM, pc, alu_out, A, D = self.simulate_step(
+        inM, instruction, reset)
     return \
       self.int_to_bin_str(inM, self.WIDTH) + \
       instruction + \
@@ -108,4 +110,7 @@ class CPUSimulator(BaseSimulator):
       self.int_to_bin_str(outM, self.WIDTH) + \
       self.int_to_bin_str(writeM, 1) + \
       self.int_to_bin_str(addressM, self.WIDTH) + \
-      self.int_to_bin_str(pc, self.WIDTH) + '\n'
+      self.int_to_bin_str(pc, self.WIDTH) + '_' + \
+      self.int_to_bin_str(alu_out, self.WIDTH) + \
+      self.int_to_bin_str(A, self.WIDTH) + \
+      self.int_to_bin_str(D, self.WIDTH) + '\n'

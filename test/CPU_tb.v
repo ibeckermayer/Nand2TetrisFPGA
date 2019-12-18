@@ -5,8 +5,8 @@ wire writeM;
 wire [15:0] outM, addressM, pc;
 reg [31:0] 	 vectornum, errors, outM_errors, writeM_errors, addressM_errors, pc_errors; // bookkeeping variables
 reg writeM_expected;
-reg [15:0] outM_expected, addressM_expected, pc_expected;
-reg [82-1:0] 	 testvectors[10000-1:0]; // array of testvectors; size determined from `wc -l tvs/CPU.tv`
+reg [15:0] outM_expected, addressM_expected, pc_expected, alu_out_expected, A_expected, D_expected;
+reg [130-1:0] 	 testvectors[10000-1:0]; // array of testvectors; size determined from `wc -l tvs/CPU.tv`
 
 CPU DUT
     (
@@ -31,27 +31,41 @@ begin
     clk = 1;
     $readmemb("tvs/CPU.tv", testvectors);
     vectornum= 0; errors = 0; outM_errors = 0; writeM_errors = 0; addressM_errors = 0; pc_errors = 0;
-    {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected} = testvectors[vectornum];
+    {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected, alu_out_expected, A_expected, D_expected} = testvectors[vectornum];
 end // initial begin
 
 always @(posedge clk)
 begin
-    #1;			 // wait time for tick to register
+
     $display("inM=%d, instruction=%b (%d), reset=%b", inM, instruction, instruction, reset);
-    $display("CPU.D=              %d", DUT.D);
-    $display("CPU.A=              %d", DUT.A);
-    $display("pc=                 %d", pc);
-    $display("pc_expected=        %d", pc_expected);
-    $display("writeM=             %b", writeM);
-    $display("writeM_expected=    %b", writeM_expected);
-    $display("addressM=           %d", addressM);
-    $display("addressM_expected=  %d", addressM_expected);
-    $display("outM=               %d", outM);
-    $display("outM_expected=      %d", outM_expected);
+    // Need to check combinational logic before register tick, or we will be observing incorrect values.
+    // Consider if the instruction means "A + D". That means we want out whatever was in the A register last-tick
+    // plus whatever was in the D register last-tick. If we wait for the tick to register, the combinational logic
+    // (which is effectively updated immediately) will show us an unwanted output.
+    $display("CPU.alu_out=         %d", DUT.alu_out);
+    $display("CPU.alu_out_expected=%d", $signed(alu_out_expected));
+    $display("outM=                %d", $signed(outM));
+    $display("outM_expected=       %d", $signed(outM_expected));
+    if (outM != outM_expected)
+    begin
+        errors = errors + 1;
+        outM_errors = outM_errors + 1;
+    end
+    #1;			 // wait time for tick to register
+    $display("CPU.D=               %d", DUT.D);
+    $display("CPU.D_expected=      %d", D_expected);
+    $display("CPU.A=               %d", DUT.A);
+    $display("CPU.A_expected=      %d", A_expected);
+    $display("pc=                  %d", pc);
+    $display("pc_expected=         %d", pc_expected);
+    $display("writeM=              %b", writeM);
+    $display("writeM_expected=     %b", writeM_expected);
+    $display("addressM=            %d", addressM);
+    $display("addressM_expected=   %d", addressM_expected);
     $display("");
 
 
-    if ({outM, writeM, addressM, pc} != {outM_expected, writeM_expected, addressM_expected, pc_expected})
+    if ({writeM, addressM, pc} != {writeM_expected, addressM_expected, pc_expected})
     begin
         errors = errors + 1;
     end
@@ -70,10 +84,7 @@ begin
     //     $display("pc_expected=        %d", pc_expected);
     //     errors = errors + 1;
     // end
-    if (outM != outM_expected)
-    begin
-        outM_errors = outM_errors + 1;
-    end
+
     if (writeM != writeM_expected)
     begin
         writeM_errors = writeM_errors + 1;
@@ -86,7 +97,7 @@ begin
     begin
         pc_errors = pc_errors + 1;
     end
-    {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected} = testvectors[vectornum];
+    {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected, alu_out_expected, A_expected, D_expected} = testvectors[vectornum];
 end // always @ (posedge clk)
 
 always @(negedge clk)
