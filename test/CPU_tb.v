@@ -94,7 +94,7 @@ end // always @ (posedge clk)
 always @(negedge clk)
 begin
     vectornum = vectornum + 1;
-    if (vectornum > 10000-1 || errors > 9)
+    if (vectornum > 100000-1 || errors > 9)
     begin
         $display("%d tests completed with %d errors", vectornum, errors);
         $display("%d outM_errors", outM_errors);
