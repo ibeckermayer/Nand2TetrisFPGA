@@ -1,3 +1,4 @@
+#include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -26,6 +27,18 @@ const char *dot_hack_from_dot_asm(const char *dot_asm) {
   return dot_hack;
 }
 
+void remove_spaces(char *str_trimmed, char *str_untrimmed) {
+  while (*str_untrimmed != '\0') {
+    if (!isspace(*str_untrimmed)) {
+      *str_trimmed = *str_untrimmed;
+      str_trimmed++;
+    }
+    str_untrimmed++;
+  }
+  *str_trimmed++ = '\n'; // replace, isspace returns true for '\n'
+  *str_trimmed = '\0';
+}
+
 parser_t *Parser__create(const char *input_filename) {
   parser_t *parser = (parser_t *)malloc(sizeof(parser_t));
   // Register file names
@@ -41,14 +54,8 @@ parser_t *Parser__create(const char *input_filename) {
 void Parser__advance(parser_t *parser) {
   // Reads the next line into the parser->current_line_buf
   fgets(parser->current_line_buf, BUF_SIZE, parser->input);
-
-  // Reads through line and extracts registers the nature of the instruction
-  // Skip spaces
-  int buffer_offset = 0; // variable to track offset from current_line_buf ptr
-  // Skip preceding spaces
-  while (*(parser->current_line_buf + buffer_offset) == ' ') {
-    buffer_offset++;
-  }
+  // Yes, parser->current_line_buf for both args will remove spaces in place
+  remove_spaces(parser->current_line_buf, parser->current_line_buf);
 }
 
 void Parser__destroy(parser_t *parser) {
