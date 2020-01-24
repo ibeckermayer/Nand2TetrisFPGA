@@ -39,10 +39,16 @@ parser_t *Parser__create(const char *input_filename) {
 }
 
 void Parser__advance(parser_t *parser) {
-  // Reads the next line into the parser->current_line buffer
-  fgets(parser->current_line_buf, BUF_SIZE - 1, parser->input);
+  // Reads the next line into the parser->current_line_buf
+  fgets(parser->current_line_buf, BUF_SIZE, parser->input);
 
   // Reads through line and extracts registers the nature of the instruction
+  // Skip spaces
+  int buffer_offset = 0; // variable to track offset from current_line_buf ptr
+  // Skip preceding spaces
+  while (*(parser->current_line_buf + buffer_offset) == ' ') {
+    buffer_offset++;
+  }
 }
 
 void Parser__destroy(parser_t *parser) {
@@ -55,14 +61,14 @@ void Parser__destroy(parser_t *parser) {
 
 int main(int argc, char *argv[]) {
   parser_t *parser = Parser__create(argv[1]);
-  printf("input_filename = %s\n", parser->input_filename);
-  printf("output_filename = %s\n", parser->output_filename);
+  // printf("input_filename = %s\n", parser->input_filename);
+  // printf("output_filename = %s\n", parser->output_filename);
+  // Parser__advance(parser);
+  // printf("current_line = %s", parser->current_line_buf);
   Parser__advance(parser);
-  printf("current_line = %s", parser->current_line_buf);
+  // printf("current_line = %s", parser->current_line_buf);
   Parser__advance(parser);
-  printf("current_line = %s", parser->current_line_buf);
-  Parser__advance(parser);
-  printf("current_line = %s", parser->current_line_buf);
+  // printf("current_line = %s", (parser->current_line_buf + 1));
   Parser__destroy(parser);
   return 0;
 }
