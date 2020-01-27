@@ -60,6 +60,61 @@ parser_t *Parser__create(const char *input_filename) {
   return parser;
 }
 
+int is_number(char c) { return (c >= '0' && c <= '9'); }
+
+int is_valid_constant_non_number(char c) {
+  // Constants must be non-negative and are written in decimal notation. A user-
+  // defined symbol can be any sequence of letters, digits, underscore (_), dot
+  // (.), dollar sign ($), and colon (:) that does not begin with a digit.
+  return ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_' ||
+          c == '.' || c == '$' || c == ':');
+}
+
+int is_line_end(char c) {
+  // checks if the character means the relevant section of the line is over
+  return (c == '\n' || c == '\0' || c == '/');
+}
+
+// Returns 1 if valid or 0 if invalid
+// Caller should omit '@' symbol
+int is_valid_A_COMMAND(char *cmd) {
+  int ptr_offset = 1;
+  // if first char is a number, check that all the rest are numbers (barring
+  // comments)
+  if (is_number(*cmd)) {
+    while (!(is_line_end(*(cmd + ptr_offset)))) {
+      if (is_number(*(cmd + ptr_offset))) {
+        ptr_offset++;
+      } else {
+        return 0;
+      }
+    }
+  } else if (is_valid_constant_non_number(*cmd)) {
+    //  else if first char is_valid_constant_non_number, check that
+    // all the rest are either that or numerical
+    while (!(is_line_end(*(cmd + ptr_offset)))) {
+      if (is_number(*(cmd + ptr_offset)) ||
+          is_valid_constant_non_number(*(cmd + ptr_offset))) {
+        ptr_offset++;
+      } else {
+        return 0;
+      }
+    }
+  } else {
+    return 0;
+  }
+  // If line end was a '/', check that there's another '/' to confirm its a
+  // valid comment and not a syntax error
+  if (*(cmd + ptr_offset) == '/') {
+    if (*(cmd + ptr_offset + 1) == '/') {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 void set_command_type(parser_t *parser) {
   char first_char = *(parser->current_line_buf);
   char second_char = *(parser->current_line_buf + 1);
@@ -74,12 +129,16 @@ void set_command_type(parser_t *parser) {
     }
   } else if (first_char == '@') {
     // TODO: check that subsequent chars are valid
-    parser->current_line_type = A_COMMAND;
+    if (is_valid_A_COMMAND(parser->current_line_buf + 1)) {
+      parser->current_line_type = A_COMMAND;
+    } else {
+      parser->current_line_type = SYNTAX_ERROR;
+    }
   } else if (first_char == '(') {
     // TODO: check that subsequent chars are valid
     parser->current_line_type = L_COMMAND;
-  } else if (/* condition */) {
-    // D, A, M, 0, 1, -, !
+  } else {
+    parser->current_line_type = SYNTAX_ERROR; // tmp
   }
 }
 
@@ -105,14 +164,14 @@ void Parser__destroy(parser_t *parser) {
 
 int main(int argc, char *argv[]) {
   parser_t *parser = Parser__create(argv[1]);
-  // printf("input_filename = %s\n", parser->input_filename);
-  // printf("output_filename = %s\n", parser->output_filename);
-  // Parser__advance(parser);
-  // printf("current_line = %s", parser->current_line_buf);
-  Parser__advance(parser);
-  // printf("current_line = %s", parser->current_line_buf);
   Parser__advance(parser);
   // printf("current_line = %s", (parser->current_line_buf + 1));
+  if (parser->current_line_type == SKIP) {
+    printf("pass\n");
+  } else {
+    printf("fail\n");
+  }
+
   Parser__destroy(parser);
   return 0;
 }
