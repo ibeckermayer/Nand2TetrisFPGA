@@ -1,26 +1,6 @@
-#include <stdio.h>
+#include "Parser.h"
 #include <stdlib.h>
 #include <string.h>
-
-#define BUF_SIZE 1024
-
-typedef enum {
-  INIT,
-  SKIP,
-  A_COMMAND,
-  C_COMMAND,
-  L_COMMAND,
-  SYNTAX_ERROR
-} line_type;
-
-typedef struct parser_s {
-  FILE *input;
-  const char *input_filename;
-  FILE *output;
-  const char *output_filename;
-  char current_line_buf[BUF_SIZE];
-  line_type current_line_type;
-} parser_t;
 
 // Takes X.asm and returns X.hack
 const char *dot_hack_from_dot_asm(const char *dot_asm) {
@@ -144,7 +124,10 @@ void set_command_type(parser_t *parser) {
 
 void Parser__advance(parser_t *parser) {
   // Reads the next line into the parser->current_line_buf
-  fgets(parser->current_line_buf, BUF_SIZE, parser->input);
+  if (fgets(parser->current_line_buf, PARSER_BUF_SIZE, parser->input) == NULL) {
+    parser->current_line_type = END_OF_FILE;
+    return;
+  }
   // parser->current_line_buf for both args will remove spaces in place
   remove_spaces(parser->current_line_buf, parser->current_line_buf);
   // \n or // -> skip line
@@ -160,18 +143,4 @@ void Parser__destroy(parser_t *parser) {
   fclose(parser->input);
   fclose(parser->output);
   free(parser);
-}
-
-int main(int argc, char *argv[]) {
-  parser_t *parser = Parser__create(argv[1]);
-  Parser__advance(parser);
-  // printf("current_line = %s", (parser->current_line_buf + 1));
-  if (parser->current_line_type == SKIP) {
-    printf("pass\n");
-  } else {
-    printf("fail\n");
-  }
-
-  Parser__destroy(parser);
-  return 0;
 }
