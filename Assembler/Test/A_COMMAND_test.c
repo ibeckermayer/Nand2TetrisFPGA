@@ -1,6 +1,5 @@
 #include "Parser.h"
-#define PASS printf("\033[1;32mPASS\n")
-#define FAIL printf("\033[1;31mFAIL\n")
+#include "Test.h"
 
 int main() {
   parser_t *parser = Parser__create("Test/A_COMMAND_test.asm");
