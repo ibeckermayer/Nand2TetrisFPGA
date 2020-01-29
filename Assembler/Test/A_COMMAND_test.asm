@@ -19,5 +19,5 @@
 @_.$: // with comment
 @_.$: / with broken comment
 @_.$:*
-@_.$:* // with comment
-@_.$:* / with broken commentt
+*@_.$: // won't be registered as A_COMMAND but tests for invalid beginning syntax
+@_.*$:
