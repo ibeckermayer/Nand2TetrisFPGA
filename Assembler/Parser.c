@@ -95,7 +95,55 @@ int is_valid_A_COMMAND(char *cmd) {
   return 1;
 }
 
+// Returns 1 if valid or 0 if invalid
+// Caller should omit leading '(' symbol
+int is_valid_L_COMMAND(char *cmd) {
+  int ptr_offset = 1;
+
+  // Must begin with valid symbol
+  if (!(is_valid_constant_non_number(*cmd))) {
+    return 0;
+  }
+
+  // Check up to what should be the closing ')'
+  while (
+      (!(is_line_end(*(cmd + ptr_offset))) && (*(cmd + ptr_offset) != ')'))) {
+    if (is_valid_constant_non_number(*(cmd + ptr_offset)) ||
+        is_number(*(cmd + ptr_offset))) {
+      ptr_offset++;
+    } else {
+      return 0;
+    }
+  }
+
+  // Check for closing ')'
+  if (*(cmd + ptr_offset) != ')') {
+    return 0;
+  }
+
+  // Now go on to the end and check for comment syntax
+  while (!(is_line_end(*(cmd + ptr_offset)))) {
+    ptr_offset++;
+  }
+
+  // If line end was a '/', check that there's another '/' to confirm its a
+  // valid comment and not a syntax error
+  if (*(cmd + ptr_offset) == '/') {
+    if (*(cmd + ptr_offset + 1) == '/') {
+      return 1;
+    } else {
+      return 0;
+    }
+  }
+  return 1;
+}
+
 void set_command_type(parser_t *parser) {
+  // \n or // -> skip line
+  // @ -> A_COMMAND
+  // ( -> L_COMMAND
+  // D, A, M, 0, 1, -, ! -> C_COMMAND
+
   char first_char = *(parser->current_line_buf);
   char second_char = *(parser->current_line_buf + 1);
 
@@ -108,15 +156,17 @@ void set_command_type(parser_t *parser) {
       parser->current_line_type = SYNTAX_ERROR;
     }
   } else if (first_char == '@') {
-    // TODO: check that subsequent chars are valid
     if (is_valid_A_COMMAND(parser->current_line_buf + 1)) {
       parser->current_line_type = A_COMMAND;
     } else {
       parser->current_line_type = SYNTAX_ERROR;
     }
   } else if (first_char == '(') {
-    // TODO: check that subsequent chars are valid
-    parser->current_line_type = L_COMMAND;
+    if (is_valid_L_COMMAND(parser->current_line_buf + 1)) {
+      parser->current_line_type = L_COMMAND;
+    } else {
+      parser->current_line_type = SYNTAX_ERROR;
+    }
   } else {
     parser->current_line_type = SYNTAX_ERROR; // tmp
   }
@@ -130,10 +180,6 @@ void Parser__advance(parser_t *parser) {
   }
   // parser->current_line_buf for both args will remove spaces in place
   remove_spaces(parser->current_line_buf, parser->current_line_buf);
-  // \n or // -> skip line
-  // @ -> A_COMMAND
-  // ( -> L_COMMAND
-  // D, A, M, 0, 1, -, !
   set_command_type(parser);
 }
 
