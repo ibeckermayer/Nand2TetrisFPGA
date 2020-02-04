@@ -138,6 +138,17 @@ int is_valid_L_COMMAND(char *cmd) {
   return 1;
 }
 
+int is_valid_C_COMMAND(char *cmd) {
+  // dest=comp;jump
+  // Go through cmd and check for '=' and ';'
+  // Based on what you find, pass strings into functions that verify dest, comp,
+  // and jump individually
+  int dest_omitted = 0;
+  int comp_omitted = 0;
+  // TODO
+  return 0;
+}
+
 void set_command_type(parser_t *parser) {
   // \n or // -> skip line
   // @ -> A_COMMAND
@@ -164,6 +175,14 @@ void set_command_type(parser_t *parser) {
   } else if (first_char == '(') {
     if (is_valid_L_COMMAND(parser->current_line_buf + 1)) {
       parser->current_line_type = L_COMMAND;
+    } else {
+      parser->current_line_type = SYNTAX_ERROR;
+    }
+  } else if (first_char == 'D' || first_char == 'A' || first_char == 'M' ||
+             first_char == '0' || first_char == '1' || first_char == '-' ||
+             first_char == '!') {
+    if (is_valid_C_COMMAND(parser->current_line_buf)) {
+      parser->current_line_type = C_COMMAND;
     } else {
       parser->current_line_type = SYNTAX_ERROR;
     }
