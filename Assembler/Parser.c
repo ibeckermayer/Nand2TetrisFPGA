@@ -138,15 +138,65 @@ int is_valid_L_COMMAND(char *cmd) {
   return 1;
 }
 
+// Finds the pointer to the end of line according to is_line_end()
+char *strchr_line_end(char *cmd) {
+  while (!(is_line_end(*cmd))) {
+    cmd++;
+  }
+  return cmd;
+}
+
+// TODOs
+int is_valid_dest(char *startPtr, char *endPtr);
+int is_valid_comp(char *startPtr, char *endPtr);
+int is_valid_jump(char *startPtr, char *endPtr);
+
 int is_valid_C_COMMAND(char *cmd) {
   // dest=comp;jump
+  // dest=comp
+  // comp;jump
   // Go through cmd and check for '=' and ';'
   // Based on what you find, pass strings into functions that verify dest, comp,
   // and jump individually
-  int dest_omitted = 0;
-  int comp_omitted = 0;
-  // TODO
-  return 0;
+  int dest_valid = 1;
+  int comp_valid = 1;
+  int jump_valid = 1;
+
+  char *equals_ptr = strchr(cmd, '=');
+  char *semi_ptr = strchr(cmd, ';');
+  char *line_end_ptr = strchr_line_end(cmd);
+
+  // =dest
+  // ;jump
+  // dest=;jump
+  // dest;comp=jump
+  // dest=
+  // comp;
+  if (equals_ptr == cmd || semi_ptr == cmd || equals_ptr == line_end_ptr ||
+      semi_ptr == line_end_ptr || semi_ptr - equals_ptr == 1 ||
+      equals_ptr > semi_ptr) {
+    return 0;
+  }
+
+  if (equals_ptr != NULL && semi_ptr != NULL) {
+    // dest=comp;jump
+    comp_valid = is_valid_comp(equals_ptr + 1, semi_ptr);
+    dest_valid = is_valid_dest(cmd, equals_ptr);
+    jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
+  } else if (equals_ptr != NULL) {
+    // dest=comp
+    comp_valid = is_valid_comp(equals_ptr + 1, line_end_ptr);
+    dest_valid = is_valid_dest(cmd, equals_ptr);
+  } else if (semi_ptr != NULL) {
+    // comp;jump
+    comp_valid = is_valid_comp(cmd, semi_ptr);
+    jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
+  } else {
+    // Unexpected error
+    return 0;
+  }
+
+  return (dest_valid && comp_valid && jump_valid);
 }
 
 void set_command_type(parser_t *parser) {
