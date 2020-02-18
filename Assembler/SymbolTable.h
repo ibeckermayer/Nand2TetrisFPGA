@@ -25,8 +25,8 @@ void SymbolTable__addEntry(symbol_table_entry_t **symbol_table,
 bool SymbolTable__contains(symbol_table_entry_t **symbol_table, char *symbol);
 
 // Gets the address of a given symbol
-uint16_t SymbolTable__getAddress(symbol_table_entry_t **symbol_table,
-                                 char *symbol);
+uint16_t SymbolTable__getValue(symbol_table_entry_t **symbol_table,
+                               char *symbol);
 
 // Deletes the table and cleans up all the memory
 void SymbolTable__destroy(symbol_table_entry_t **symbol_table);

@@ -36,6 +36,8 @@ parser_t *Parser__create(const char *input_filename) {
   parser->input = fopen(parser->input_filename, "r");
   parser->output = fopen(parser->output_filename, "w");
   parser->current_line_type = INIT;
+  parser->current_pass_type = FIRST_PASS;
+  parser->current_line_number = 1;
 
   return parser;
 }
@@ -146,58 +148,56 @@ char *strchr_line_end(char *cmd) {
   return cmd;
 }
 
-// TODOs
-int is_valid_dest(char *startPtr, char *endPtr);
-int is_valid_comp(char *startPtr, char *endPtr);
-int is_valid_jump(char *startPtr, char *endPtr);
+// TODO: delete, but keep that ptr logic down below for now
+// since it will be useful when extracting the command for
+// int is_valid_C_COMMAND(char *cmd) {
+//   // dest=comp;jump
+//   // dest=comp
+//   // comp;jump
+//   // Go through cmd and check for '=' and ';'
+//   // Based on what you find, pass strings into functions that verify dest,
+//   comp,
+//   // and jump individually
+//   int dest_valid = 1;
+//   int comp_valid = 1;
+//   int jump_valid = 1;
 
-int is_valid_C_COMMAND(char *cmd) {
-  // dest=comp;jump
-  // dest=comp
-  // comp;jump
-  // Go through cmd and check for '=' and ';'
-  // Based on what you find, pass strings into functions that verify dest, comp,
-  // and jump individually
-  int dest_valid = 1;
-  int comp_valid = 1;
-  int jump_valid = 1;
+//   char *equals_ptr = strchr(cmd, '=');
+//   char *semi_ptr = strchr(cmd, ';');
+//   char *line_end_ptr = strchr_line_end(cmd);
 
-  char *equals_ptr = strchr(cmd, '=');
-  char *semi_ptr = strchr(cmd, ';');
-  char *line_end_ptr = strchr_line_end(cmd);
+//   // =dest
+//   // ;jump
+//   // dest=;jump
+//   // dest;comp=jump
+//   // dest=
+//   // comp;
+//   if (equals_ptr == cmd || semi_ptr == cmd || equals_ptr == line_end_ptr ||
+//       semi_ptr == line_end_ptr || semi_ptr - equals_ptr == 1 ||
+//       equals_ptr > semi_ptr) {
+//     return 0;
+//   }
 
-  // =dest
-  // ;jump
-  // dest=;jump
-  // dest;comp=jump
-  // dest=
-  // comp;
-  if (equals_ptr == cmd || semi_ptr == cmd || equals_ptr == line_end_ptr ||
-      semi_ptr == line_end_ptr || semi_ptr - equals_ptr == 1 ||
-      equals_ptr > semi_ptr) {
-    return 0;
-  }
+//   if (equals_ptr != NULL && semi_ptr != NULL) {
+//     // dest=comp;jump
+//     comp_valid = is_valid_comp(equals_ptr + 1, semi_ptr);
+//     dest_valid = is_valid_dest(cmd, equals_ptr);
+//     jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
+//   } else if (equals_ptr != NULL) {
+//     // dest=comp
+//     comp_valid = is_valid_comp(equals_ptr + 1, line_end_ptr);
+//     dest_valid = is_valid_dest(cmd, equals_ptr);
+//   } else if (semi_ptr != NULL) {
+//     // comp;jump
+//     comp_valid = is_valid_comp(cmd, semi_ptr);
+//     jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
+//   } else {
+//     // Unexpected error
+//     return 0;
+//   }
 
-  if (equals_ptr != NULL && semi_ptr != NULL) {
-    // dest=comp;jump
-    comp_valid = is_valid_comp(equals_ptr + 1, semi_ptr);
-    dest_valid = is_valid_dest(cmd, equals_ptr);
-    jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
-  } else if (equals_ptr != NULL) {
-    // dest=comp
-    comp_valid = is_valid_comp(equals_ptr + 1, line_end_ptr);
-    dest_valid = is_valid_dest(cmd, equals_ptr);
-  } else if (semi_ptr != NULL) {
-    // comp;jump
-    comp_valid = is_valid_comp(cmd, semi_ptr);
-    jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
-  } else {
-    // Unexpected error
-    return 0;
-  }
-
-  return (dest_valid && comp_valid && jump_valid);
-}
+//   return (dest_valid && comp_valid && jump_valid);
+// }
 
 void set_command_type(parser_t *parser) {
   // \n or // -> skip line
@@ -231,13 +231,24 @@ void set_command_type(parser_t *parser) {
   } else if (first_char == 'D' || first_char == 'A' || first_char == 'M' ||
              first_char == '0' || first_char == '1' || first_char == '-' ||
              first_char == '!') {
-    if (is_valid_C_COMMAND(parser->current_line_buf)) {
-      parser->current_line_type = C_COMMAND;
-    } else {
-      parser->current_line_type = SYNTAX_ERROR;
-    }
+    //  Don't need to check syntax here, it can be checked during translation to
+    //  binary
+    parser->current_line_type = C_COMMAND;
   } else {
-    parser->current_line_type = SYNTAX_ERROR; // tmp
+    parser->current_line_type = SYNTAX_ERROR;
+  }
+
+#ifndef TEST
+  if (parser->current_line_type == SYNTAX_ERROR) {
+    exit(1);
+  }
+#endif
+}
+
+void set_current_line_number(parser_t *parser) {
+  if (parser->current_line_type != SKIP &&
+      parser->current_line_type != L_COMMAND) {
+    parser->current_line_number++;
   }
 }
 
@@ -250,6 +261,7 @@ void Parser__advance(parser_t *parser) {
   // parser->current_line_buf for both args will remove spaces in place
   remove_spaces(parser->current_line_buf, parser->current_line_buf);
   set_command_type(parser);
+  set_current_line_number(parser);
 }
 
 void Parser__destroy(parser_t *parser) {

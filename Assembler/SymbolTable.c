@@ -24,6 +24,10 @@ symbol_table_entry_t *SymbolTable__create(void) {
 
 void SymbolTable__addEntry(symbol_table_entry_t **symbol_table,
                            const char *symbol, uint16_t value) {
+
+  if (SymbolTable__contains(symbol_table, (char *)symbol)) {
+    return;
+  }
   symbol_table_entry_t *new_entry;
   new_entry = malloc(sizeof(symbol_table_entry_t));
 
@@ -43,8 +47,8 @@ bool SymbolTable__contains(symbol_table_entry_t **symbol_table, char *symbol) {
   return s != NULL;
 }
 
-uint16_t SymbolTable__getAddress(symbol_table_entry_t **symbol_table,
-                                 char *symbol) {
+uint16_t SymbolTable__getValue(symbol_table_entry_t **symbol_table,
+                               char *symbol) {
   symbol_table_entry_t *s;
   HASH_FIND_STR(*symbol_table, symbol, s);
   // WARN: will segfault if symbol DNE
@@ -61,19 +65,19 @@ void SymbolTable__destroy(symbol_table_entry_t **symbol_table) {
   }
 }
 
-// TODO: Turn this into a test
-int main() {
-  symbol_table_entry_t *symbol_table = SymbolTable__create();
-  char *test1 = "test1";
-  char *test2 = "test2";
-  uint16_t val = 5;
-  SymbolTable__addEntry(&symbol_table, test1, val);
-  if (SymbolTable__contains(&symbol_table, "test1"))
-    printf("Contains test1\n");
-  if (!(SymbolTable__contains(&symbol_table, test2)))
-    printf("Does not contain test2\n");
-  printf("SymbolTable has address (%d) for symbol %s\n",
-         SymbolTable__getAddress(&symbol_table, test1), test1);
-  SymbolTable__destroy(&symbol_table);
-  return 0;
-}
+// // TODO: Turn this into a test
+// int main() {
+//   symbol_table_entry_t *symbol_table = SymbolTable__create();
+//   char *test1 = "test1";
+//   char *test2 = "test2";
+//   uint16_t val = 5;
+//   SymbolTable__addEntry(&symbol_table, test1, val);
+//   if (SymbolTable__contains(&symbol_table, "test1"))
+//     printf("Contains test1\n");
+//   if (!(SymbolTable__contains(&symbol_table, test2)))
+//     printf("Does not contain test2\n");
+//   printf("SymbolTable has address (%d) for symbol %s\n",
+//          SymbolTable__getAddress(&symbol_table, test1), test1);
+//   SymbolTable__destroy(&symbol_table);
+//   return 0;
+// }

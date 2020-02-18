@@ -15,6 +15,9 @@ typedef enum {
   END_OF_FILE
 } line_type;
 
+// Enum for tracking first and second pass
+typedef enum { FIRST_PASS, SECOND_PASS } pass_type;
+
 // Structer to manage parser state
 typedef struct parser_s {
   FILE *input;
@@ -23,6 +26,8 @@ typedef struct parser_s {
   const char *output_filename;
   char current_line_buf[PARSER_BUF_SIZE];
   line_type current_line_type;
+  pass_type current_pass_type;
+  int current_line_number; // line number
 } parser_t;
 
 // Creates parser_t object for input_filename, opens input FILE for reading
