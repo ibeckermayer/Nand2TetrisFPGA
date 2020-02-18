@@ -2,5 +2,12 @@
   "python.linting.pylintEnabled": false,
   "python.linting.enabled": true,
   "python.linting.mypyEnabled": true,
-  "python.formatting.provider": "yapf"
+  "python.formatting.provider": "yapf",
+  "files.associations": {
+    "parser.h": "c",
+    "test.h": "c",
+    "stdbool.h": "c",
+    "stdio.h": "c",
+    "symboltable.h": "c"
+  }
 }
