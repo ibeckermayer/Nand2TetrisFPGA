@@ -2,6 +2,7 @@
 #include "Test.h"
 
 void test_initialization(symbol_table_entry_t *symbol_table) {
+  // Tests that default register values are registered in the table on create
   if (SymbolTable__contains(&symbol_table, "SP") &&
       SymbolTable__getValue(&symbol_table, "SP") == 0) {
     PASS;
@@ -44,16 +45,45 @@ void test_initialization(symbol_table_entry_t *symbol_table) {
   } else {
     FAIL;
   }
+  char r[4] = {};
+  for (int i = 0; i < 16; i++) {
+    sprintf(r, "R%d", i);
+    if (SymbolTable__contains(&symbol_table, r) &&
+        SymbolTable__getValue(&symbol_table, r) == i) {
+      PASS;
+    } else {
+      FAIL;
+    }
+  }
+}
 
-  // TODO: test R0-15 for the sake of it
+void test_no_overwrite(symbol_table_entry_t *symbol_table) {
+  // Tests that values in symbol table CAN NOT be overwritten
+  // Trying to overwrite R15 with 0
+  SymbolTable__addEntry(&symbol_table, "R15", 0);
+  if (SymbolTable__getValue(&symbol_table, "R15") == 15) {
+    PASS;
+  } else {
+    FAIL;
+  }
+}
+
+void test_add_symbol(symbol_table_entry_t *symbol_table) {
+  SymbolTable__addEntry(&symbol_table, "entry", 1000);
+
+  if (SymbolTable__getValue(&symbol_table, "entry") == 1000) {
+    PASS;
+  } else {
+    FAIL;
+  }
 }
 
 int main() {
   symbol_table_entry_t *symbol_table = SymbolTable__create();
 
   test_initialization(symbol_table);
-  // TODO: test attempt to overwrite a symbol
-  // TODO: test adding arbitrary symbol
+  test_no_overwrite(symbol_table);
+  test_add_symbol(symbol_table);
 
   SymbolTable__destroy(&symbol_table);
   printf("\n");

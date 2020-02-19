@@ -14,7 +14,7 @@ symbol_table_entry_t *SymbolTable__create(void) {
   SymbolTable__addEntry(&symbol_table, "THAT", 4);
   SymbolTable__addEntry(&symbol_table, "SCREEN", 0x4000);
   SymbolTable__addEntry(&symbol_table, "KDB", 0x6000);
-  char r[4];
+  char r[4] = {};
   for (int i = 0; i < 16; i++) {
     sprintf(r, "R%d", i);
     SymbolTable__addEntry(&symbol_table, r, i);
