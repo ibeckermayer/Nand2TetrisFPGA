@@ -25,10 +25,9 @@ typedef struct parser_s {
   const char *input_filename;
   FILE *output;
   const char *output_filename;
-  char current_line_buf[PARSER_BUF_SIZE]; // Holds the whole line
-  char *current_command_buf;              // Holds just the relvant parts of
-                             // the command. Its a char pointer so that it gets
-                             // auto destroyed when we call Parser__destroy()
+  char current_line_buf[PARSER_BUF_SIZE];    // Holds the whole line
+  char current_command_buf[PARSER_BUF_SIZE]; // Holds just the relvant parts of
+                                             // the command.
   line_type current_line_type;
   pass_type current_pass_type;
   int16_t machine_code_line_number; // default -1, so first value becomes 0 on

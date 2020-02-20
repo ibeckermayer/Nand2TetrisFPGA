@@ -4,11 +4,13 @@
 #include <stdbool.h>
 #include <stdio.h>
 
+#define SYM_LEN_MAX 512
+
 // Structure for table, see https://troydhanson.github.io/uthash/userguide.html
 typedef struct symbol_table_entry_s {
-  const char *symbol; // key
-  uint16_t value;     // unsigned, 16-bit according to Hack spec
-  UT_hash_handle hh;  // makes this structure hashable
+  char symbol[SYM_LEN_MAX]; // key
+  uint16_t value;           // unsigned, 16-bit according to Hack spec
+  UT_hash_handle hh;        // makes this structure hashable
 } symbol_table_entry_t;
 
 // Creates pointer to symbol_table_entry_t equal to NULL, which can be thought

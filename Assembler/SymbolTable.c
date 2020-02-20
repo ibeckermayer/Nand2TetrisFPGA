@@ -23,22 +23,17 @@ symbol_table_entry_t *SymbolTable__create(void) {
 }
 
 void SymbolTable__addEntry(symbol_table_entry_t **symbol_table,
-                           const char *symbol, uint16_t value) {
+                           const char *new_symbol, uint16_t value) {
 
-  if (SymbolTable__contains(symbol_table, (char *)symbol)) {
+  if (SymbolTable__contains(symbol_table, (char *)new_symbol)) {
     return;
   }
-  symbol_table_entry_t *new_entry;
-  new_entry = malloc(sizeof(symbol_table_entry_t));
-
-  size_t symbol_length = strlen(symbol);
+  symbol_table_entry_t *new_entry = malloc(sizeof(symbol_table_entry_t));
 
   // allocate memory for chars in symbol plus the null terminator
-  new_entry->symbol = calloc(symbol_length + 1, sizeof(char));
-  strncpy((char *)new_entry->symbol, symbol, symbol_length);
+  strcpy(new_entry->symbol, new_symbol);
   new_entry->value = value;
-  HASH_ADD_KEYPTR(hh, *symbol_table, new_entry->symbol, symbol_length,
-                  new_entry);
+  HASH_ADD_STR(*symbol_table, symbol, new_entry);
 }
 
 bool SymbolTable__contains(symbol_table_entry_t **symbol_table, char *symbol) {
@@ -60,7 +55,6 @@ void SymbolTable__destroy(symbol_table_entry_t **symbol_table) {
 
   HASH_ITER(hh, *symbol_table, entry, tmp) {
     HASH_DEL(*symbol_table, entry); // delete; symbol_table advances to next
-    free((char *)entry->symbol);
     free(entry);
   }
 }

@@ -209,9 +209,8 @@ void syntax_error(parser_t *parser) {
 
 void finalize_extract(parser_t *parser, char *first_char, char *last_char) {
   size_t len = last_char - first_char;
-  char *current_command_buf = calloc(len + 1, sizeof(char));
-  strncpy(current_command_buf, first_char, len);
-  parser->current_command_buf = current_command_buf;
+  strncpy(parser->current_command_buf, first_char, len);
+  *(parser->current_command_buf + len) = '\0';
 }
 
 void extract_A_COMMAND(parser_t *parser) {
@@ -265,7 +264,10 @@ void Parser__advance(parser_t *parser) {
   set_machine_code_line_number(parser); // sets parser->machine_code_line_number
 }
 
-void Parser__update_symbol_table(parser_t *parser) { return; }
+void Parser__update_symbol_table(parser_t *parser) {
+  // if (parser->current_line_type == L_COMMAND)
+  return;
+}
 
 // Function that runs through the full process of assembling to machine code
 void Parser__assemble(const char *input_filename) {
