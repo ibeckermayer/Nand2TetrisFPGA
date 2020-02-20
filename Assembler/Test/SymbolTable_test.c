@@ -79,6 +79,7 @@ void test_add_symbol(symbol_table_entry_t *symbol_table) {
 }
 
 int main() {
+  printf("\033[0mRunning tests for Symbol Table\n");
   symbol_table_entry_t *symbol_table = SymbolTable__create();
 
   test_initialization(symbol_table);

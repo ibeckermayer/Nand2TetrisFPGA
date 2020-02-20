@@ -1,3 +1,5 @@
+#ifndef _SymbolTable_H_
+#define _SymbolTable_H_
 #include "uthash.h"
 #include <stdbool.h>
 #include <stdio.h>
@@ -30,3 +32,5 @@ uint16_t SymbolTable__getValue(symbol_table_entry_t **symbol_table,
 
 // Deletes the table and cleans up all the memory
 void SymbolTable__destroy(symbol_table_entry_t **symbol_table);
+
+#endif

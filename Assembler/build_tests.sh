@@ -1,4 +1,4 @@
-# Build
-clang -o Test/A_COMMAND_test Parser.c Test/A_COMMAND_test.c -I./ -D TEST
-clang -o Test/L_COMMAND_test Parser.c Test/L_COMMAND_test.c -I./ -D TEST
+set -e
+
+clang -o Test/Parser__advance_test Parser.c Test/Parser__advance_test.c -I./ -D TEST
 clang -o Test/SymbolTable_test SymbolTable.c Test/SymbolTable_test.c -I./ -D TEST

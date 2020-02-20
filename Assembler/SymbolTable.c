@@ -64,20 +64,3 @@ void SymbolTable__destroy(symbol_table_entry_t **symbol_table) {
     free(entry);
   }
 }
-
-// // TODO: Turn this into a test
-// int main() {
-//   symbol_table_entry_t *symbol_table = SymbolTable__create();
-//   char *test1 = "test1";
-//   char *test2 = "test2";
-//   uint16_t val = 5;
-//   SymbolTable__addEntry(&symbol_table, test1, val);
-//   if (SymbolTable__contains(&symbol_table, "test1"))
-//     printf("Contains test1\n");
-//   if (!(SymbolTable__contains(&symbol_table, test2)))
-//     printf("Does not contain test2\n");
-//   printf("SymbolTable has address (%d) for symbol %s\n",
-//          SymbolTable__getAddress(&symbol_table, test1), test1);
-//   SymbolTable__destroy(&symbol_table);
-//   return 0;
-// }

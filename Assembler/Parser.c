@@ -1,4 +1,5 @@
 #include "Parser.h"
+#include "SymbolTable.h"
 #include <stdlib.h>
 #include <string.h>
 
@@ -37,8 +38,8 @@ parser_t *Parser__create(const char *input_filename) {
   parser->output = fopen(parser->output_filename, "w");
   parser->current_line_type = INIT;
   parser->current_pass_type = FIRST_PASS;
-  parser->current_line_number = 1;
-
+  parser->machine_code_line_number = -1;
+  parser->assembly_code_line_number = 0;
   return parser;
 }
 
@@ -148,57 +149,6 @@ char *strchr_line_end(char *cmd) {
   return cmd;
 }
 
-// TODO: delete, but keep that ptr logic down below for now
-// since it will be useful when extracting the command for
-// int is_valid_C_COMMAND(char *cmd) {
-//   // dest=comp;jump
-//   // dest=comp
-//   // comp;jump
-//   // Go through cmd and check for '=' and ';'
-//   // Based on what you find, pass strings into functions that verify dest,
-//   comp,
-//   // and jump individually
-//   int dest_valid = 1;
-//   int comp_valid = 1;
-//   int jump_valid = 1;
-
-//   char *equals_ptr = strchr(cmd, '=');
-//   char *semi_ptr = strchr(cmd, ';');
-//   char *line_end_ptr = strchr_line_end(cmd);
-
-//   // =dest
-//   // ;jump
-//   // dest=;jump
-//   // dest;comp=jump
-//   // dest=
-//   // comp;
-//   if (equals_ptr == cmd || semi_ptr == cmd || equals_ptr == line_end_ptr ||
-//       semi_ptr == line_end_ptr || semi_ptr - equals_ptr == 1 ||
-//       equals_ptr > semi_ptr) {
-//     return 0;
-//   }
-
-//   if (equals_ptr != NULL && semi_ptr != NULL) {
-//     // dest=comp;jump
-//     comp_valid = is_valid_comp(equals_ptr + 1, semi_ptr);
-//     dest_valid = is_valid_dest(cmd, equals_ptr);
-//     jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
-//   } else if (equals_ptr != NULL) {
-//     // dest=comp
-//     comp_valid = is_valid_comp(equals_ptr + 1, line_end_ptr);
-//     dest_valid = is_valid_dest(cmd, equals_ptr);
-//   } else if (semi_ptr != NULL) {
-//     // comp;jump
-//     comp_valid = is_valid_comp(cmd, semi_ptr);
-//     jump_valid = is_valid_jump(semi_ptr + 1, line_end_ptr);
-//   } else {
-//     // Unexpected error
-//     return 0;
-//   }
-
-//   return (dest_valid && comp_valid && jump_valid);
-// }
-
 void set_command_type(parser_t *parser) {
   // \n or // -> skip line
   // @ -> A_COMMAND
@@ -231,43 +181,127 @@ void set_command_type(parser_t *parser) {
   } else if (first_char == 'D' || first_char == 'A' || first_char == 'M' ||
              first_char == '0' || first_char == '1' || first_char == '-' ||
              first_char == '!') {
-    //  Don't need to check syntax here, it can be checked during translation to
-    //  binary
+    //  Don't need to check syntax here, it can more easily be checked during
+    //  translation to binary
     parser->current_line_type = C_COMMAND;
   } else {
     parser->current_line_type = SYNTAX_ERROR;
   }
+}
 
+void set_machine_code_line_number(parser_t *parser) {
+  if (parser->current_line_type == A_COMMAND ||
+      parser->current_line_type == C_COMMAND) {
+    parser->machine_code_line_number++;
+  }
+}
+
+void syntax_error(parser_t *parser) {
 #ifndef TEST
   if (parser->current_line_type == SYNTAX_ERROR) {
+    fprintf(stderr, "Syntax Error on line: %d",
+            parser->assembly_code_line_number);
+    Parser__delete(parser, 1);
     exit(1);
   }
 #endif
 }
 
-void set_current_line_number(parser_t *parser) {
-  if (parser->current_line_type != SKIP &&
-      parser->current_line_type != L_COMMAND) {
-    parser->current_line_number++;
+void finalize_extract(parser_t *parser, char *first_char, char *last_char) {
+  size_t len = last_char - first_char;
+  char *current_command_buf = calloc(len + 1, sizeof(char));
+  strncpy(current_command_buf, first_char, len);
+  parser->current_command_buf = current_command_buf;
+}
+
+void extract_A_COMMAND(parser_t *parser) {
+  char *command_end = strchr_line_end(parser->current_line_buf);
+  finalize_extract(parser, parser->current_line_buf + 1, command_end);
+}
+
+void extract_L_COMMAND(parser_t *parser) {
+  char *command_end = strchr(parser->current_line_buf, ')');
+  finalize_extract(parser, parser->current_line_buf + 1, command_end);
+}
+
+void extract_C_COMMAND(parser_t *parser) {
+  char *command_end = strchr_line_end(parser->current_line_buf);
+  finalize_extract(parser, parser->current_line_buf, command_end);
+}
+
+void extract_command(parser_t *parser) {
+  if (parser->current_line_type == SKIP ||
+      parser->current_line_type == SYNTAX_ERROR) {
+    return;
+  }
+
+  if (parser->current_line_type == A_COMMAND) {
+    extract_A_COMMAND(parser);
+  } else if (parser->current_line_type == L_COMMAND) {
+    extract_L_COMMAND(parser);
+  } else if (parser->current_line_type == C_COMMAND) {
+    extract_C_COMMAND(parser);
+  } else {
+    printf("Unexpected error in extract_command\n");
+    syntax_error(parser);
   }
 }
 
+// Fills parser->current_command_buf with the command
 void Parser__advance(parser_t *parser) {
   // Reads the next line into the parser->current_line_buf
   if (fgets(parser->current_line_buf, PARSER_BUF_SIZE, parser->input) == NULL) {
     parser->current_line_type = END_OF_FILE;
     return;
   }
+
+  // Assembly code line number always advances, because we're reading a new line
+  parser->assembly_code_line_number++;
+
   // parser->current_line_buf for both args will remove spaces in place
   remove_spaces(parser->current_line_buf, parser->current_line_buf);
-  set_command_type(parser);
-  set_current_line_number(parser);
+  set_command_type(parser);             // sets parser->current_line_type
+  extract_command(parser);              // sets parser->current_command_buf
+  set_machine_code_line_number(parser); // sets parser->machine_code_line_number
 }
 
-void Parser__destroy(parser_t *parser) {
+void Parser__update_symbol_table(parser_t *parser) { return; }
+
+// Function that runs through the full process of assembling to machine code
+void Parser__assemble(const char *input_filename) {
+  parser_t *parser = Parser__create(input_filename);
+  while (parser->current_line_type != END_OF_FILE) {
+    Parser__advance(parser);
+
+    if (parser->current_line_type == SKIP) {
+      continue;
+    }
+
+    if (parser->current_line_type == SYNTAX_ERROR) {
+      syntax_error(parser);
+    }
+
+    if ((parser->current_line_type == L_COMMAND ||
+         parser->current_line_type == A_COMMAND) &&
+        is_valid_constant_non_number(*(parser->current_command_buf))) {
+      if (parser->current_pass_type == FIRST_PASS) {
+        Parser__update_symbol_table(parser);
+      }
+    }
+
+    // Extract relevant bits into current_command_buf
+    // if is L_COMMAND || A_COMMAND and first letter is valid char and is first
+    // pass, update symbol table
+  }
+}
+
+void Parser__destroy(parser_t *parser, int is_error) {
   // no need to free input_filename which comes from argv
   free((void *)parser->output_filename);
   fclose(parser->input);
   fclose(parser->output);
+  if (is_error) {
+    remove(parser->output_filename);
+  }
   free(parser);
 }
