@@ -37,7 +37,6 @@ parser_t *Parser__create(const char *input_filename) {
   parser->input = fopen(parser->input_filename, "r");
   parser->output = fopen(parser->output_filename, "w");
   parser->current_line_type = INIT;
-  parser->current_pass_type = FIRST_PASS;
   parser->machine_code_line_number = -1;
   parser->assembly_code_line_number = 0;
   parser->next_A_COMMAND_symbol_RAM_addr = 16;
@@ -285,28 +284,22 @@ void Parser__update_symbol_table(parser_t *parser) {
 // Function that runs through the full process of assembling to machine code
 void Parser__assemble(const char *input_filename) {
   parser_t *parser = Parser__create(input_filename);
+
+  // First pass
   while (parser->current_line_type != END_OF_FILE) {
     Parser__advance(parser);
 
     if (parser->current_line_type == SKIP) {
       continue;
-    }
-
-    if (parser->current_line_type == SYNTAX_ERROR) {
+    } else if (parser->current_line_type == SYNTAX_ERROR) {
       syntax_error(parser);
     }
 
     if ((parser->current_line_type == L_COMMAND ||
          parser->current_line_type == A_COMMAND) &&
         is_valid_constant_non_number(*(parser->current_command_buf))) {
-      if (parser->current_pass_type == FIRST_PASS) {
-        Parser__update_symbol_table(parser);
-      }
+      Parser__update_symbol_table(parser);
     }
-
-    // Extract relevant bits into current_command_buf
-    // if is L_COMMAND || A_COMMAND and first letter is valid char and is first
-    // pass, update symbol table
   }
 }
 

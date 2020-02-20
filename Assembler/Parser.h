@@ -16,9 +16,6 @@ typedef enum {
   END_OF_FILE
 } line_type;
 
-// Enum for tracking first and second pass
-typedef enum { FIRST_PASS, SECOND_PASS } pass_type;
-
 // Structer to manage parser state
 typedef struct parser_s {
   FILE *input;
@@ -29,7 +26,6 @@ typedef struct parser_s {
   char current_command_buf[PARSER_BUF_SIZE]; // Holds just the relvant parts of
                                              // the command.
   line_type current_line_type;
-  pass_type current_pass_type;
   int16_t machine_code_line_number;   // default -1, so first value becomes 0 on
                                       // Parser__advance
   int assembly_code_line_number;      // default 0, so first value becomes 1 on
