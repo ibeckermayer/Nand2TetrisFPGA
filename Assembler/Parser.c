@@ -40,6 +40,7 @@ parser_t *Parser__create(const char *input_filename) {
   parser->current_pass_type = FIRST_PASS;
   parser->machine_code_line_number = -1;
   parser->assembly_code_line_number = 0;
+  parser->next_A_COMMAND_symbol_RAM_addr = 16;
   return parser;
 }
 
@@ -264,9 +265,21 @@ void Parser__advance(parser_t *parser) {
   set_machine_code_line_number(parser); // sets parser->machine_code_line_number
 }
 
+// Adds current_command_buf to symbol table. Should only be called when
+// (parser->current_line_type == L_COMMAND || parser->current_line_type ==
+// A_COMMAND) && is_valid_constant_non_number(*(parser->current_command_buf)) &&
+// parser->current_pass_type == FIRST_PASS
 void Parser__update_symbol_table(parser_t *parser) {
-  // if (parser->current_line_type == L_COMMAND)
-  return;
+  if (parser->current_line_type == L_COMMAND) {
+    SymbolTable__addEntry(&(parser->symbol_table), parser->current_command_buf,
+                          parser->machine_code_line_number + 1);
+  } else if (parser->current_line_type == A_COMMAND) {
+    SymbolTable__addEntry(&(parser->symbol_table), parser->current_command_buf,
+                          parser->next_A_COMMAND_symbol_RAM_addr++);
+  } else {
+    printf("Unexpected symbole table update\n");
+    syntax_error(parser);
+  }
 }
 
 // Function that runs through the full process of assembling to machine code

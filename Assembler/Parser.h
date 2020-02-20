@@ -30,10 +30,11 @@ typedef struct parser_s {
                                              // the command.
   line_type current_line_type;
   pass_type current_pass_type;
-  int16_t machine_code_line_number; // default -1, so first value becomes 0 on
-                                    // Parser__advance
-  int assembly_code_line_number;    // default 0, so first value becomes 1 on
-                                    // Parser__advance
+  int16_t machine_code_line_number;   // default -1, so first value becomes 0 on
+                                      // Parser__advance
+  int assembly_code_line_number;      // default 0, so first value becomes 1 on
+                                      // Parser__advance
+  int next_A_COMMAND_symbol_RAM_addr; // default 16, starting after R15
   symbol_table_entry_t *symbol_table;
 } parser_t;
 
