@@ -148,4 +148,6 @@ int main() {
       }
     }
   }
+  // Delete as error in order to delete .Hack files
+  Parser__destroy(parser, 1);
 }
