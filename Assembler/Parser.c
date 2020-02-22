@@ -306,12 +306,12 @@ void assemble_A_COMMAND(parser_t *parser) {
   }
 
   while (val) {
-    if (n & 1) {
+    if (val & 1) {
       line[--i] = "1";
     } else {
       line[--i] = "0";
     }
-    n >>= 1;
+    val >>= 1;
   }
 
   while (--i > -1) {
@@ -321,8 +321,187 @@ void assemble_A_COMMAND(parser_t *parser) {
   fputs(line, parser->output);
 }
 
-// TODO
-void assemble_C_COMMAND(parser);
+char *assemble_dest(char *first_char, char *last_char) {
+  if (first_char == NULL && last_char == NULL) {
+    return "000";
+  }
+  size_t length = last_char - first_char + 1;
+  if (strncmp(first_char, "M", length) == 0) {
+    return "001";
+  } else if (strncmp(first_char, "D", length) == 0) {
+    return "010";
+  } else if (strncmp(first_char, "MD", length) == 0) {
+    return "011";
+  } else if (strncmp(first_char, "A", length) == 0) {
+    return "100";
+  } else if (strncmp(first_char, "AM", length) == 0) {
+    return "101";
+  } else if (strncmp(first_char, "AD", length) == 0) {
+    return "110";
+  } else if (strncmp(first_char, "AMD", length) == 0) {
+    return "111";
+  } else {
+    // Indicates syntax error, will be caught in assemble_C_COMMAND()
+    return "";
+  }
+}
+
+char *assemble_jump(char *first_char, char *last_char) {
+  if (first_char == NULL && last_char == NULL) {
+    return "000";
+  }
+  size_t length = last_char - first_char + 1;
+  if (strncmp(first_char, "JGT", length) == 0) {
+    return "001";
+  } else if (strncmp(first_char, "JEQ", length) == 0) {
+    return "010";
+  } else if (strncmp(first_char, "JGE", length) == 0) {
+    return "011";
+  } else if (strncmp(first_char, "JLT", length) == 0) {
+    return "100";
+  } else if (strncmp(first_char, "JNE", length) == 0) {
+    return "101";
+  } else if (strncmp(first_char, "JLE", length) == 0) {
+    return "110";
+  } else if (strncmp(first_char, "JMP", length) == 0) {
+    return "111";
+  } else {
+    // Indicates syntax error, will be caught in assemble_C_COMMAND()
+    return "";
+  }
+}
+
+char *assemble_comp(char *first_char, char *last_char) {
+  size_t length = last_char - first_char + 1;
+
+  if (strncmp(first_char, "0", length) == 0) {
+    return "0101010";
+  } else if (strncmp(first_char, "1", length) == 0) {
+    return "0111111";
+  } else if (strncmp(first_char, "-1", length) == 0) {
+    return "0111010";
+  } else if (strncmp(first_char, "D", length) == 0) {
+    return "0001100";
+  } else if (strncmp(first_char, "A", length) == 0) {
+    return "0110000";
+  } else if (strncmp(first_char, "!D", length) == 0) {
+    return "0001101";
+  } else if (strncmp(first_char, "!A", length) == 0) {
+    return "0110001";
+  } else if (strncmp(first_char, "-D", length) == 0) {
+    return "0001111";
+  } else if (strncmp(first_char, "-A", length) == 0) {
+    return "0110011";
+  } else if (strncmp(first_char, "D+1", length) == 0) {
+    return "0011111";
+  } else if (strncmp(first_char, "A+1", length) == 0) {
+    return "0110111";
+  } else if (strncmp(first_char, "D-1", length) == 0) {
+    return "0001110";
+  } else if (strncmp(first_char, "A-1", length) == 0) {
+    return "0110010";
+  } else if (strncmp(first_char, "D+A", length) == 0) {
+    return "0000010";
+  } else if (strncmp(first_char, "D-A", length) == 0) {
+    return "0010011";
+  } else if (strncmp(first_char, "A-D", length) == 0) {
+    return "0000111";
+  } else if (strncmp(first_char, "D&A", length) == 0) {
+    return "0000000";
+  } else if (strncmp(first_char, "D|A", length) == 0) {
+    return "0010101";
+  } else if (strncmp(first_char, "M", length) == 0) {
+    return "1110000";
+  } else if (strncmp(first_char, "!M", length) == 0) {
+    return "1110001";
+  } else if (strncmp(first_char, "-M", length) == 0) {
+    return "1110011";
+  } else if (strncmp(first_char, "M+1", length) == 0) {
+    return "1110111";
+  } else if (strncmp(first_char, "M-1", length) == 0) {
+    return "1110010";
+  } else if (strncmp(first_char, "D+M", length) == 0) {
+    return "1000010";
+  } else if (strncmp(first_char, "D-M", length) == 0) {
+    return "1010011";
+  } else if (strncmp(first_char, "M-D", length) == 0) {
+    return "1000111";
+  } else if (strncmp(first_char, "D&M", length) == 0) {
+    return "1000000";
+  } else if (strncmp(first_char, "D|M", length) == 0) {
+    return "1010101";
+  } else {
+    // Indicates syntax error, will be caught in assemble_C_COMMAND()
+    return "";
+  }
+}
+
+// NOTE: C command syntax checking is preformed here
+void assemble_C_COMMAND(parser_t *parser) {
+  char line[ASSEMBLY_LINE_LEN] = {};
+  char *dest_first_char = NULL;
+  char *dest_last_char = NULL;
+  char *comp_first_char = NULL;
+  char *comp_last_char = NULL;
+  char *jump_first_char = NULL;
+  char *jump_last_char = NULL;
+  char *equals_ptr = strchr(parser->current_command_buf, '=');
+  char *semicolon_ptr = strchr(parser->current_command_buf, ';');
+
+  // Fill in default bits
+  for (int i = 0; i < 3; i++) {
+    line[i] = '0';
+  }
+  line[ASSEMBLY_LINE_LEN - 2] = '\n';
+
+  if (equals_ptr == NULL && semicolon_ptr == NULL) {
+    // Ommitting dest and jump is a syntax error
+    parser->current_line_type = SYNTAX_ERROR;
+    return;
+  } else if (equals_ptr != NULL && semicolon_ptr == NULL) {
+    dest_first_char = parser->current_line_buf;
+    dest_last_char = equals_ptr - 1;
+    comp_first_char = equals_ptr + 1;
+    comp_last_char = strchr_line_end(parser->current_line_buf) - 1;
+    if (*(comp_last_char + 1) == '/' && *(comp_last_char + 2) != '/') {
+      parser->current_line_type = SYNTAX_ERROR;
+      return;
+    }
+  } else if (equals_ptr == NULL && semicolon_ptr != NULL) {
+    jump_first_char = semicolon_ptr + 1;
+    jump_last_char = strchr_line_end(parser->current_line_buf) - 1;
+    comp_first_char = parser->current_line_buf;
+    comp_last_char = semicolon_ptr - 1;
+    if (*(jump_last_char + 1) == '/' && *(jump_last_char + 2) != '/') {
+      parser->current_line_type = SYNTAX_ERROR;
+      return;
+    }
+  } else {
+    dest_first_char = parser->current_line_buf;
+    dest_last_char = equals_ptr - 1;
+    comp_first_char = equals_ptr + 1;
+    comp_last_char = semicolon_ptr - 1;
+    jump_first_char = semicolon_ptr + 1;
+    jump_last_char = strchr_line_end(parser->current_line_buf) - 1;
+    if (*(jump_last_char + 1) == '/' && *(jump_last_char + 2) != '/') {
+      parser->current_line_type = SYNTAX_ERROR;
+      return;
+    }
+  }
+
+  strcat(line, assemble_comp(comp_first_char, comp_last_char));
+  strcat(line, assemble_dest(dest_first_char, dest_last_char));
+  strcat(line, assemble_jump(jump_first_char, jump_last_char));
+
+  // If all bits were not filled out, dest, comp, or jump were invalid so
+  // syntax error
+  if (strlen(line) != ASSEMBLY_LINE_LEN - 1) {
+    parser->current_line_type = SYNTAX_ERROR;
+    return;
+  }
+
+  fputs(line, parser->output);
+}
 
 // Converts an A or C command into its binary equivalent
 void assemble_command(parser_t *parser) {
@@ -374,6 +553,8 @@ void Parser__run(const char *input_filename) {
 
     assemble_command(parser);
   }
+
+  Parser__destroy(parser, 0);
 }
 
 void Parser__destroy(parser_t *parser, int is_error) {
