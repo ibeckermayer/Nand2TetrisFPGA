@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ASSEMBLY_LINE_LEN 18 // 16 bits + '\n' + '\0'
+
 // Takes X.asm and returns X.hack
 const char *dot_hack_from_dot_asm(const char *dot_asm) {
   size_t asm_num_chars = strlen(dot_asm);
@@ -276,13 +278,68 @@ void Parser__update_symbol_table(parser_t *parser) {
     SymbolTable__addEntry(&(parser->symbol_table), parser->current_command_buf,
                           parser->next_A_COMMAND_symbol_RAM_addr++);
   } else {
-    printf("Unexpected symbole table update\n");
+    printf("Unexpected symbol table update\n");
+    syntax_error(parser);
+  }
+}
+
+// Resets relevant pieces of the parser for the second pass
+void reset_for_second_pass(parser_t *parser) {
+  rewind(parser->input);
+  parser->current_line_type = INIT;
+  parser->machine_code_line_number = -1;
+  parser->assembly_code_line_number = 0;
+}
+
+void assemble_A_COMMAND(parser_t *parser) {
+  uint16_t val;
+  char line[ASSEMBLY_LINE_LEN] = {};
+  int i = ASSEMBLY_LINE_LEN - 1;
+
+  line[--i] = '\n';
+
+  if (is_valid_constant_non_number(*(parser->current_command_buf))) {
+    val = SymbolTable__getValue(&(parser->symbol_table),
+                                parser->current_command_buf);
+  } else {
+    val = atoi(parser->current_command_buf);
+  }
+
+  while (val) {
+    if (n & 1) {
+      line[--i] = "1";
+    } else {
+      line[--i] = "0";
+    }
+    n >>= 1;
+  }
+
+  while (--i > -1) {
+    line[i] = "0";
+  }
+
+  fputs(line, parser->output);
+}
+
+// TODO
+void assemble_C_COMMAND(parser);
+
+// Converts an A or C command into its binary equivalent
+void assemble_command(parser_t *parser) {
+  if (parser->current_line_type == L_COMMAND) {
+    return;
+  } else if (parser->current_line_type == A_COMMAND) {
+    assemble_A_COMMAND(parser);
+  } else if (parser->current_line_type == C_COMMAND) {
+    assemble_C_COMMAND(parser);
+  } else {
+    printf("Unexpected error in assemble_command()\n");
     syntax_error(parser);
   }
 }
 
 // Function that runs through the full process of assembling to machine code
-void Parser__assemble(const char *input_filename) {
+void Parser__run(const char *input_filename) {
   parser_t *parser = Parser__create(input_filename);
 
   // First pass
@@ -300,6 +357,22 @@ void Parser__assemble(const char *input_filename) {
         is_valid_constant_non_number(*(parser->current_command_buf))) {
       Parser__update_symbol_table(parser);
     }
+  }
+
+  // Reset file pointer etc
+  reset_for_second_pass(parser);
+
+  // Second pass
+  while (parser->current_line_type != END_OF_FILE) {
+    Parser__advance(parser);
+
+    if (parser->current_line_type == SKIP) {
+      continue;
+    } else if (parser->current_line_type == SYNTAX_ERROR) {
+      syntax_error(parser);
+    }
+
+    assemble_command(parser);
   }
 }
 
