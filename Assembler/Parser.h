@@ -48,4 +48,7 @@ void Parser__update_symbol_table(parser_t *);
 
 // Cleanup
 void Parser__destroy(parser_t *parser, int is_error);
+
+// Function that runs through the full process of assembling to machine code
+void Parser__run(const char *input_filename);
 #endif

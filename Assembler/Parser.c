@@ -42,6 +42,7 @@ parser_t *Parser__create(const char *input_filename) {
   parser->machine_code_line_number = -1;
   parser->assembly_code_line_number = 0;
   parser->next_A_COMMAND_symbol_RAM_addr = 16;
+  parser->symbol_table = SymbolTable__create();
   return parser;
 }
 
@@ -57,7 +58,7 @@ int is_valid_constant_non_number(char c) {
 
 int is_line_end(char c) {
   // checks if the character means the relevant section of the line is over
-  return (c == '\n' || c == '\0' || c == '/');
+  return (c == '\n' || c == '\r' || c == '\0' || c == '/');
 }
 
 // Returns 1 if valid or 0 if invalid
@@ -160,7 +161,7 @@ void set_command_type(parser_t *parser) {
   char first_char = *(parser->current_line_buf);
   char second_char = *(parser->current_line_buf + 1);
 
-  if (first_char == '\n') { // \n or // -> skip line
+  if (first_char == '\n' || first_char == '\r') { // \n or // -> skip line
     parser->current_line_type = SKIP;
   } else if (first_char == '/') {
     if (second_char == '/') {
@@ -201,9 +202,9 @@ void set_machine_code_line_number(parser_t *parser) {
 void syntax_error(parser_t *parser) {
 #ifndef TEST
   if (parser->current_line_type == SYNTAX_ERROR) {
-    fprintf(stderr, "Syntax Error on line: %d",
+    fprintf(stderr, "Syntax Error on line: %d\n",
             parser->assembly_code_line_number);
-    Parser__delete(parser, 1);
+    Parser__destroy(parser, 1);
     exit(1);
   }
 #endif
@@ -307,15 +308,15 @@ void assemble_A_COMMAND(parser_t *parser) {
 
   while (val) {
     if (val & 1) {
-      line[--i] = "1";
+      line[--i] = '1';
     } else {
-      line[--i] = "0";
+      line[--i] = '0';
     }
     val >>= 1;
   }
 
   while (--i > -1) {
-    line[i] = "0";
+    line[i] = '0';
   }
 
   fputs(line, parser->output);
@@ -450,27 +451,26 @@ void assemble_C_COMMAND(parser_t *parser) {
 
   // Fill in default bits
   for (int i = 0; i < 3; i++) {
-    line[i] = '0';
+    line[i] = '1';
   }
-  line[ASSEMBLY_LINE_LEN - 2] = '\n';
 
   if (equals_ptr == NULL && semicolon_ptr == NULL) {
     // Ommitting dest and jump is a syntax error
     parser->current_line_type = SYNTAX_ERROR;
     return;
   } else if (equals_ptr != NULL && semicolon_ptr == NULL) {
-    dest_first_char = parser->current_line_buf;
+    dest_first_char = parser->current_command_buf;
     dest_last_char = equals_ptr - 1;
     comp_first_char = equals_ptr + 1;
-    comp_last_char = strchr_line_end(parser->current_line_buf) - 1;
+    comp_last_char = strchr_line_end(parser->current_command_buf) - 1;
     if (*(comp_last_char + 1) == '/' && *(comp_last_char + 2) != '/') {
       parser->current_line_type = SYNTAX_ERROR;
       return;
     }
   } else if (equals_ptr == NULL && semicolon_ptr != NULL) {
     jump_first_char = semicolon_ptr + 1;
-    jump_last_char = strchr_line_end(parser->current_line_buf) - 1;
-    comp_first_char = parser->current_line_buf;
+    jump_last_char = strchr_line_end(parser->current_command_buf) - 1;
+    comp_first_char = parser->current_command_buf;
     comp_last_char = semicolon_ptr - 1;
     if (*(jump_last_char + 1) == '/' && *(jump_last_char + 2) != '/') {
       parser->current_line_type = SYNTAX_ERROR;
@@ -492,6 +492,7 @@ void assemble_C_COMMAND(parser_t *parser) {
   strcat(line, assemble_comp(comp_first_char, comp_last_char));
   strcat(line, assemble_dest(dest_first_char, dest_last_char));
   strcat(line, assemble_jump(jump_first_char, jump_last_char));
+  strcat(line, "\n");
 
   // If all bits were not filled out, dest, comp, or jump were invalid so
   // syntax error
@@ -517,15 +518,15 @@ void assemble_command(parser_t *parser) {
   }
 }
 
-// Function that runs through the full process of assembling to machine code
 void Parser__run(const char *input_filename) {
   parser_t *parser = Parser__create(input_filename);
 
   // First pass
+  Parser__advance(parser); // skip INIT
   while (parser->current_line_type != END_OF_FILE) {
-    Parser__advance(parser);
 
     if (parser->current_line_type == SKIP) {
+      Parser__advance(parser);
       continue;
     } else if (parser->current_line_type == SYNTAX_ERROR) {
       syntax_error(parser);
@@ -536,22 +537,29 @@ void Parser__run(const char *input_filename) {
         is_valid_constant_non_number(*(parser->current_command_buf))) {
       Parser__update_symbol_table(parser);
     }
+    Parser__advance(parser);
   }
 
   // Reset file pointer etc
   reset_for_second_pass(parser);
 
   // Second pass
+  Parser__advance(parser); // skip INIT
   while (parser->current_line_type != END_OF_FILE) {
-    Parser__advance(parser);
 
     if (parser->current_line_type == SKIP) {
+      Parser__advance(parser);
       continue;
-    } else if (parser->current_line_type == SYNTAX_ERROR) {
-      syntax_error(parser);
     }
 
     assemble_command(parser);
+
+    if (parser->current_line_type == SYNTAX_ERROR) {
+      // Catch C command syntax errors
+      syntax_error(parser);
+    }
+
+    Parser__advance(parser);
   }
 
   Parser__destroy(parser, 0);
