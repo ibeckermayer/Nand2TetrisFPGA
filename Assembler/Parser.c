@@ -274,10 +274,10 @@ void Parser__advance(parser_t *parser) {
 void Parser__update_symbol_table(parser_t *parser) {
   if (parser->current_line_type == L_COMMAND) {
     SymbolTable__addEntry(&(parser->symbol_table), parser->current_command_buf,
-                          parser->machine_code_line_number + 1);
+                          parser->machine_code_line_number + 1, 1);
   } else if (parser->current_line_type == A_COMMAND) {
     SymbolTable__addEntry(&(parser->symbol_table), parser->current_command_buf,
-                          parser->next_A_COMMAND_symbol_RAM_addr++);
+                          parser->next_A_COMMAND_symbol_RAM_addr++, 0);
   } else {
     printf("Unexpected symbol table update\n");
     syntax_error(parser);

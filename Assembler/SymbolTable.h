@@ -22,8 +22,9 @@ typedef struct symbol_table_entry_s {
 symbol_table_entry_t *SymbolTable__create(void);
 
 // Add a new symbol to the table
+// If replace is true, will try to replace the key if it already exists
 void SymbolTable__addEntry(symbol_table_entry_t **symbol_table,
-                           const char *symbol, uint16_t value);
+                           const char *symbol, uint16_t value, int replace);
 
 // Checks if table contains symbol
 bool SymbolTable__contains(symbol_table_entry_t **symbol_table, char *symbol);

@@ -60,7 +60,7 @@ void test_initialization(symbol_table_entry_t *symbol_table) {
 void test_no_overwrite(symbol_table_entry_t *symbol_table) {
   // Tests that values in symbol table CAN NOT be overwritten
   // Trying to overwrite R15 with 0
-  SymbolTable__addEntry(&symbol_table, "R15", 0);
+  SymbolTable__addEntry(&symbol_table, "R15", 0, 0);
   if (SymbolTable__getValue(&symbol_table, "R15") == 15) {
     PASS;
   } else {
@@ -68,8 +68,19 @@ void test_no_overwrite(symbol_table_entry_t *symbol_table) {
   }
 }
 
+void test_overwrite(symbol_table_entry_t *symbol_table) {
+  // Tests that values in symbol table CAN NOT be overwritten
+  // Trying to overwrite R15 with 0
+  SymbolTable__addEntry(&symbol_table, "R15", 0, 1);
+  if (SymbolTable__getValue(&symbol_table, "R15") == 0) {
+    PASS;
+  } else {
+    FAIL;
+  }
+}
+
 void test_add_symbol(symbol_table_entry_t *symbol_table) {
-  SymbolTable__addEntry(&symbol_table, "entry", 1000);
+  SymbolTable__addEntry(&symbol_table, "entry", 1000, 0);
 
   if (SymbolTable__getValue(&symbol_table, "entry") == 1000) {
     PASS;
@@ -85,6 +96,7 @@ int main() {
   test_initialization(symbol_table);
   test_no_overwrite(symbol_table);
   test_add_symbol(symbol_table);
+  test_overwrite(symbol_table);
 
   SymbolTable__destroy(&symbol_table);
   printf("\n");
