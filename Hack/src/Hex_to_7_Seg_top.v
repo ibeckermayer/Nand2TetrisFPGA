@@ -6,21 +6,16 @@ module Hex_to_7_Seg_top (
 	input [3:0] hex_in_2,
 	input [3:0] hex_in_3,
 	output reg [6:0] seg_out,
-	output enable0,
-	output enable1,	
-	output enable2,
-	output enable3);
+	output reg enable0,
+	output reg enable1,	
+	output reg enable2,
+	output reg enable3);
 
 wire [6:0] seg_out_0;
 wire [6:0] seg_out_1;
 wire [6:0] seg_out_2;
 wire [6:0] seg_out_3;
 reg [1:0] toggle = 2'b00;
-reg enable0;
-reg enable1;
-reg enable2;
-reg enable3;
-
 reg [19:0] refresh_counter; 
 
 Hex_to_7_Seg Hex_to_7_Seg_0 (
@@ -88,7 +83,6 @@ begin
 			enable2 = 1'b1;
 			enable3 = 1'b1;
 		end
-		default: 
 	endcase
 end
 
