@@ -64,24 +64,24 @@ begin
 		end
 		2'b01: begin
 			seg_out = seg_out_1;
-			enable0 = 1'b0;
-			enable1 = 1'b1;
+			enable0 = 1'b1;
+			enable1 = 1'b0;
 			enable2 = 1'b1;
 			enable3 = 1'b1;
 		end
 		2'b10: begin
 			seg_out = seg_out_2;
-			enable0 = 1'b0;
+			enable0 = 1'b1;
 			enable1 = 1'b1;
-			enable2 = 1'b1;
+			enable2 = 1'b0;
 			enable3 = 1'b1;
 		end
 		2'b11: begin
 			seg_out = seg_out_3;
-			enable0 = 1'b0;
+			enable0 = 1'b1;
 			enable1 = 1'b1;
 			enable2 = 1'b1;
-			enable3 = 1'b1;
+			enable3 = 1'b0;
 		end
 	endcase
 end
