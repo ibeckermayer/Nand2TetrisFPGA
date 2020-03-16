@@ -3,20 +3,19 @@ module Hex_to_7_Seg_top (
 	input reset,
 	input [3:0] hex_in_0,
 	input [3:0] hex_in_1,
-	output [6:0] seg_out,
+	output reg [6:0] seg_out,
 	output enable0,
 	output enable1,	
 	output enable2,
-	output enable3,
-	);
+	output enable3);
 
 wire [6:0] seg_out_0;
 wire [6:0] seg_out_1;
-wire [1:0] toggle = 0b'10;
-wire enable0 = toggle[0];
-wire enable1 = toggle[1];
-wire enable2 = 0b'1;
-wire enable3 = 0b'1;
+reg [1:0] toggle = 2'b10;
+assign enable0 = toggle[0];
+assign enable1 = toggle[1];
+assign enable2 = 1'b1;
+assign enable3 = 1'b1;
 
 reg [19:0] refresh_counter; 
 
@@ -46,7 +45,7 @@ end
 
 always @(toggle, seg_out_0, seg_out_1)
 begin
-	if (toggle[1] == 0'b1)
+	if (toggle[1] == 1'b1)
 		seg_out = seg_out_1;
 	else
 		seg_out = seg_out_0;
