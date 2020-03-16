@@ -16,7 +16,7 @@ wire [6:0] seg_out_1;
 wire [6:0] seg_out_2;
 wire [6:0] seg_out_3;
 reg [1:0] toggle = 2'b00;
-reg [19:0] refresh_counter; 
+reg [15:0] refresh_counter; 
 
 Hex_to_7_Seg Hex_to_7_Seg_0 (
 	.hex(hex_in_0),
@@ -48,7 +48,7 @@ end
 
 always @(posedge clk)
 begin
-	if (refresh_counter == {20{1'b1}})
+	if (refresh_counter == {16{1'b1}})
 		toggle <= toggle + 1;
 end
 
