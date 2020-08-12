@@ -6,7 +6,7 @@ reg [31:0]  vectornum, errors;   // bookkeeping variables
 reg [31:0]  testvectors[32767:0]; // array of testvectors;
 reg 	       clk;
 
-ROM32K #("tvs/ROM_input.tv") DUT (
+ROM32K #("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/ROM_input.tv") DUT (
            .address(address),
            .out(out)
        );
@@ -19,7 +19,7 @@ end
 initial
 begin
     clk = 1;
-    $readmemb("tvs/ROM.tv", testvectors);
+    $readmemb("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/ROM.tv", testvectors);
     vectornum= 0; errors = 0;
     {address, out_expected} = testvectors[vectornum];
 end

@@ -41,7 +41,7 @@ end
 initial
 begin
     clk = 1;
-    $readmemb("tvs/ALU.tv", testvectors);
+    $readmemb("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/ALU.tv", testvectors);
     vectornum= 0; errors = 0;
     {x, y, zx, nx, zy, ny, f, no, out_expected} = testvectors[vectornum];
 end // initial begin

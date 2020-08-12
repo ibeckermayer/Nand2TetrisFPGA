@@ -29,7 +29,7 @@ end
 initial
 begin
     clk = 1;
-    $readmemb("tvs/RAM.tv", testvectors);
+    $readmemb("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/RAM.tv", testvectors);
     vectornum= 0; errors = 0;
     {address, in, load, out_expected} = testvectors[vectornum]; // load test signals into device / out_expected
 end
