@@ -1,20 +1,16 @@
-module RAM 
+module RAM #(parameter RAM_WIDTH = 8,
+             parameter ADDR_WIDTH = 3)       // RAM_WIDTH == 2^(ADDR_WIDTH)
        (input 		 clk,
-        input [15:0] address,
+        input [ADDR_WIDTH-1:0] address,
         input 		 load,
         input [15:0] 	 in,
-        output [15:0] 	 out,
-        output [15:0] screen_out);
+        output [15:0] 	 out);
 
-reg [15:0] 		   ram [16383:0]; // 16k RAM array
-reg [15:0]         screen[24575:16384]; // 8k Screen memory map
+reg [15:0] 		   ram [RAM_WIDTH-1:0]; // RAM_WIDTH-element array of 16-bit wide reg
 
 always @(posedge clk) begin
     if (load)
         ram[address] <= in;
-        screen[address] <= in;
 end
-
-assign out = ram[address];
-assign screen_out = screen[24575];
-endmodule
+assign out = ram[address];	// asynchronous RAM
+endmodule // RAM8
