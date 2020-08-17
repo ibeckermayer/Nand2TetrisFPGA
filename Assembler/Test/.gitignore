@@ -1,2 +1,3 @@
 Parser__advance_test
 SymbolTable_test
+*.hack
