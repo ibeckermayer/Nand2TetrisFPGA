@@ -9,3 +9,4 @@ __pycache__
 *.jpg
 **.DS_Store**
 **.dSYM**
+*.hack
