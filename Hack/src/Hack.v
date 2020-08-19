@@ -27,7 +27,7 @@ assign enable3 = screen_enable3_to_Hack_enable3;
 
 
 // instantiate instruction memory
-ROM32K #("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/ROM_input.tv") instr_mem
+ROM32K #("/home/ibeckermayer/Nand2TetrisFPGA/Assembler/RAM_out_attached_to_7_seg_simple.hack") instr_mem
        (
            .address(cpu_pc_to_rom_address),	      // input
            .out(instr_mem_out_to_cpu_instruction) // output
