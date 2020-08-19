@@ -47,7 +47,7 @@ CPU cpu
     );
 
 // instantiate RAM
-RAM #(65536, 16) data_mem
+RAM #(32768, 15) data_mem
     (
         .clk(clk),				                    // input
         .address(cpu_addressM_to_data_mem_address), // input

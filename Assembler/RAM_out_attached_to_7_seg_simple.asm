@@ -7,7 +7,7 @@
 // 0x1234 into both RAM[0] and RAM[0x1234] and then repeat, our 7 segment display should always just show 
 // us "1234". I'm using this as a sanity check to demonstrate to myself that something is actually working 
 // how I think it is on hardware (up to now all testing has been software simulations).
-@4460 // Load 0x1234 into the A register
+@4660 // Load 0x1234 into the A register
 D=A   // Copy 0x1234 into the D register
 M=D   // RAM[0x1234] = 0x1234
 @0    // Load 0x0000 into the A register
