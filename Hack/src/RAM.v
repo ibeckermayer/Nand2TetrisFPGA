@@ -7,10 +7,11 @@ module RAM #(parameter RAM_WIDTH = 8,
         output [15:0] 	 out);
 
 reg [15:0] 		   ram [RAM_WIDTH-1:0]; // RAM_WIDTH-element array of 16-bit wide reg
+reg [15:0] out;    // Declare out a reg to allow for synchronous assignment
 
 always @(posedge clk) begin
     if (load)
         ram[address] <= in;
+    out <= ram[address];  // synchronous RAM (BRAM)
 end
-assign out = ram[address];	// asynchronous RAM
 endmodule // RAM8
