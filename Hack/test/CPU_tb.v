@@ -31,7 +31,6 @@ end
 initial
 begin
     clk = 1;
-    $readmemb("/home/ibeckermayer/Nand2TetrisFPGA/Hack/test/tvs/CPU.tv", testvectors);
     vectornum= 0; errors = 0; outM_errors = 0; writeM_errors = 0; addressM_errors = 0; pc_errors = 0;
     {inM, instruction, reset, outM_expected, writeM_expected, addressM_expected, pc_expected, alu_out_expected, A_expected, D_expected} = testvectors[vectornum];
 end // initial begin
