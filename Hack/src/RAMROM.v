@@ -12,7 +12,7 @@ module RAMROM #(parameter ADDR_WIDTH = 16,
     begin
         if (INPUT_FILE != "")
         begin
-            $readmemb(inputfile, rom);
+            $readmemb(INPUT_FILE, mem);
         end
     end
     
@@ -21,7 +21,7 @@ module RAMROM #(parameter ADDR_WIDTH = 16,
         if (load)
         begin
             mem[address] <= in;
-            out          <= mem[address];  // synchronous RAM (BRAM)
         end
+        out          <= mem[address];  // synchronous RAM (BRAM)
     end
 endmodule // RAM8
