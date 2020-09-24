@@ -20,10 +20,10 @@ always @* begin
         x_internal = 0;
     else
         x_internal = x;
-    if (nx)
-        x_internal = ~x_internal;
-    else
-        x_internal = x_internal;
+        if (nx)
+            x_internal = ~x_internal;
+        else
+            x_internal = x_internal;
 end
 
 // y_internal statements computation
@@ -32,10 +32,10 @@ always @* begin
         y_internal = 0;
     else
         y_internal = y;
-    if (ny)
-        y_internal = ~y_internal;
-    else
-        y_internal = y_internal;
+        if (ny)
+            y_internal = ~y_internal;
+        else
+            y_internal = y_internal;
 end
 
 // out_internal statements computation

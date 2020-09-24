@@ -37,30 +37,30 @@ wire 	      alu_ng;
 
 // initialize ALU
 ALU _alu
-    (
-        .x(D),			// input
-        .y(A_or_inM),		// input
-        .zx(c1),			// input
-        .nx(c2),			// input
-        .zy(c3),			// input
-        .ny(c4),			// input
-        .f(c5),			// input
-        .no(c6),			// input
-        .out(alu_out),		// output
-        .zr(alu_zr),		// output
-        .ng(alu_ng)		// output
-    );
+(
+.x(D),			// input
+.y(A_or_inM),		// input
+.zx(c1),			// input
+.nx(c2),			// input
+.zy(c3),			// input
+.ny(c4),			// input
+.f(c5),			// input
+.no(c6),			// input
+.out(alu_out),		// output
+.zr(alu_zr),		// output
+.ng(alu_ng)		// output
+);
 
 // initialize PC
 PC _pc
-   (
-       .clk(clk),
-       .in(A),
-       .inc(1'b1),		// over-ridden by load, can be set to 1
-       .load(jump),		// over-ridden by reset
-       .reset(reset),		// highest priority
-       .out(pc)
-   );
+(
+.clk(clk),
+.in(A),
+.inc(1'b1),		// over-ridden by load, can be set to 1
+.load(jump),		// over-ridden by reset
+.reset(reset),		// highest priority
+.out(pc)
+);
 
 // The Hack assembly language specification denotes two distinct types of instruction
 // A-instruction: MSB == 0, loads the A register with value V = 0vvvvvvvvvvvvvvv
@@ -127,15 +127,15 @@ always @(posedge clk) begin
     if (d1) begin
         A <= alu_out;
     end
-    if (d2) begin
-        D <= alu_out;
-    end
-    if (reset) begin
-        // Will override everything else, since within an always block the order of the statements matter
-        // see: https://electronics.stackexchange.com/questions/351103/how-does-verilog-evaluate-conflicting-assignments
-        A <= 16'd0;
-        D <= 16'd0;
-    end
+        if (d2) begin
+            D <= alu_out;
+        end
+            if (reset) begin
+                // Will override everything else, since within an always block the order of the statements matter
+                // see: https://electronics.stackexchange.com/questions/351103/how-does-verilog-evaluate-conflicting-assignments
+                A <= 16'd0;
+                D <= 16'd0;
+            end
 end
 
 endmodule // CPU
