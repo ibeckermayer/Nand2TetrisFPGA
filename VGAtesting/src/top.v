@@ -82,7 +82,7 @@ module top(input wire clk,           // board clock: 100 MHz on Arty/Basys3/Nexy
     // wire to hold the output of the ROM32K that's holding the screen data
     wire [15:0] screen_out;
     
-    RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/VGAtesting/src/4_white_top.txt") screen
+    RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/VGAtesting/src/every_other.txt") screen
     (
     .clk(clk),
     .address(screen_addr),
