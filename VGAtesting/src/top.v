@@ -40,11 +40,11 @@ module top(input wire clk,           // board clock: 100 MHz on Arty/Basys3/Nexy
     .vga_r(vga_r),
     .vga_b(vga_b),
     .vga_g(vga_g)//,
-//    .vga_active_o(o_active_tb),
-//    .bit_index_o(bit_index_tb),
-//    .pixel_clk_o(pixel_clk_tb),
-//    .x_o(x),
-//    .y_o(y)
+    //    .vga_active_o(o_active_tb),
+    //    .bit_index_o(bit_index_tb),
+    //    .pixel_clk_o(pixel_clk_tb),
+    //    .x_o(x),
+    //    .y_o(y)
     );
     
     RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/VGAtesting/src/every_other.txt") screen

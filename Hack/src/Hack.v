@@ -27,12 +27,14 @@ module Hack (input clk,
     
     
     // instantiate instruction memory
-    RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/RAM_out_attached_to_7_seg_simple.hack") instr_mem
+    RAMROM #(15, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/RAM_out_attached_to_7_seg_simple.hack") instr_mem
     (
     .clk(clk),
     .address(cpu_pc_to_rom_address),	      // input
     .out(instr_mem_out_to_cpu_instruction), // output
     // ground unused ports
+    .screen_address(0),
+    .screen_out(0),
     .load(0),
     .in(0)
     );
@@ -50,14 +52,18 @@ module Hack (input clk,
     .pc(cpu_pc_to_rom_address)		                // output
     );
     
+    wire [15:0] screen_out_to_7_Seg_hex_in;
+    
     // instantiate RAM
     RAMROM #(15) data_mem
     (
     .clk(clk),				                    // input
     .address(cpu_addressM_to_data_mem_address[14:0]), // input, attach lower 15-bits
+    .screen_address('h1234),
     .load(cpu_writeM_to_data_mem_load),	        // input
     .in(cpu_outM_to_data_mem_in),		        // input
-    .out(data_mem_out_to_cpu_inM)		        // output
+    .out(data_mem_out_to_cpu_inM),		        // output
+    .screen_out(screen_out_to_7_Seg_hex_in)
     );
     
     // instantiate "Screen"
@@ -65,10 +71,10 @@ module Hack (input clk,
     (
     .clk(clk),     // input
     .reset(reset), // input
-    .hex_in_0(data_mem_out_to_cpu_inM[3:0]),   // input [3:0]
-    .hex_in_1(data_mem_out_to_cpu_inM[7:4]),   // input [3:0]
-    .hex_in_2(data_mem_out_to_cpu_inM[11:8]),  // input [3:0]
-    .hex_in_3(data_mem_out_to_cpu_inM[15:12]), // input [3:0]
+    .hex_in_0(screen_out_to_7_Seg_hex_in[3:0]),   // input [3:0]
+    .hex_in_1(screen_out_to_7_Seg_hex_in[7:4]),   // input [3:0]
+    .hex_in_2(screen_out_to_7_Seg_hex_in[11:8]),  // input [3:0]
+    .hex_in_3(screen_out_to_7_Seg_hex_in[15:12]), // input [3:0]
     .seg_out(screen_seg_out_to_Hack_seg_out), // output reg [6:0]
     .enable0(screen_enable0_to_Hack_enable0), // output reg
     .enable1(screen_enable1_to_Hack_enable1), // output reg
