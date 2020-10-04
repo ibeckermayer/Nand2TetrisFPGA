@@ -2,7 +2,7 @@
   "python.linting.pylintEnabled": false,
   "python.linting.enabled": true,
   "python.linting.mypyEnabled": true,
-  "python.formatting.provider": "yapf",
+  "python.formatting.provider": "black",
   "files.associations": {
     "parser.h": "c",
     "test.h": "c",

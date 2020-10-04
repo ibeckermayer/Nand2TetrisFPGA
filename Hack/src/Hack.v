@@ -27,7 +27,7 @@ module Hack (input clk,
     
     
     // instantiate instruction memory
-    RAMROM #(15, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/RAM_out_attached_to_7_seg_simple.hack") instr_mem
+    RAMROM #(15, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/write_every_other_pixel.hack") instr_mem
     (
     .clk(clk),
     .address(cpu_pc_to_rom_address),	      // input
@@ -59,7 +59,7 @@ module Hack (input clk,
     (
     .clk(clk),				                    // input
     .address(cpu_addressM_to_data_mem_address[14:0]), // input, attach lower 15-bits
-    .screen_address('h1234),
+    .screen_address(16384),
     .load(cpu_writeM_to_data_mem_load),	        // input
     .in(cpu_outM_to_data_mem_in),		        // input
     .out(data_mem_out_to_cpu_inM),		        // output
