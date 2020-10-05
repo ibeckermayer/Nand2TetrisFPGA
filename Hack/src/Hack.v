@@ -1,10 +1,10 @@
-module Hack (input clk,
-             input reset,
-             output [6:0] seg_out,
-             output enable0,
-             output enable1,
-             output enable2,
-             output enable3);
+module Hack (input wire clk,
+             input wire reset,
+             output wire vga_hs,       // horizontal sync output
+             output wire vga_vs,       // vertical sync output
+             output wire [3:0] vga_r,  // 4-bit VGA red output
+             output wire [3:0] vga_g,  // 4-bit VGA green output
+             output wire [3:0] vga_b); // 4-bit VGA blue 
     
     // connecting wires
     wire [15:0] data_mem_out_to_cpu_inM;
@@ -12,19 +12,10 @@ module Hack (input clk,
     wire [15:0] cpu_outM_to_data_mem_in;
     wire        cpu_writeM_to_data_mem_load;
     wire [15:0] cpu_addressM_to_data_mem_address;
-    wire [15:0] cpu_pc_to_rom_address;
-    wire [6:0]  screen_seg_out_to_Hack_seg_out;
-    wire        screen_enable0_to_Hack_enable0;
-    wire        screen_enable1_to_Hack_enable1;
-    wire        screen_enable2_to_Hack_enable2;
-    wire        screen_enable3_to_Hack_enable3;
-    
-    assign seg_out = screen_seg_out_to_Hack_seg_out;
-    assign enable0 = screen_enable0_to_Hack_enable0;
-    assign enable1 = screen_enable1_to_Hack_enable1;
-    assign enable2 = screen_enable2_to_Hack_enable2;
-    assign enable3 = screen_enable3_to_Hack_enable3;
-    
+    wire [14:0] cpu_pc_to_rom_address;
+    // Driven by vga_ctrl
+    wire [14:0] screen_addr;
+    wire [14:0] screen_out;
     
     // instantiate instruction memory
     RAMROM #(15, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/write_every_other_pixel.hack") instr_mem
@@ -52,33 +43,30 @@ module Hack (input clk,
     .pc(cpu_pc_to_rom_address)		                // output
     );
     
-    wire [15:0] screen_out_to_7_Seg_hex_in;
-    
     // instantiate RAM
     RAMROM #(15) data_mem
     (
     .clk(clk),				                    // input
     .address(cpu_addressM_to_data_mem_address[14:0]), // input, attach lower 15-bits
-    .screen_address(16384),
+    .screen_address(screen_addr),
     .load(cpu_writeM_to_data_mem_load),	        // input
     .in(cpu_outM_to_data_mem_in),		        // input
     .out(data_mem_out_to_cpu_inM),		        // output
-    .screen_out(screen_out_to_7_Seg_hex_in)
+    .screen_out(screen_out)
     );
     
-    // instantiate "Screen"
-    Hex_to_7_Seg_top screen
+    // instantiate VGA controller
+    VGA320x240_Controller vga_ctrl
     (
-    .clk(clk),     // input
-    .reset(reset), // input
-    .hex_in_0(screen_out_to_7_Seg_hex_in[3:0]),   // input [3:0]
-    .hex_in_1(screen_out_to_7_Seg_hex_in[7:4]),   // input [3:0]
-    .hex_in_2(screen_out_to_7_Seg_hex_in[11:8]),  // input [3:0]
-    .hex_in_3(screen_out_to_7_Seg_hex_in[15:12]), // input [3:0]
-    .seg_out(screen_seg_out_to_Hack_seg_out), // output reg [6:0]
-    .enable0(screen_enable0_to_Hack_enable0), // output reg
-    .enable1(screen_enable1_to_Hack_enable1), // output reg
-    .enable2(screen_enable2_to_Hack_enable2), // output reg
-    .enable3(screen_enable3_to_Hack_enable3)  // output reg
+    .clk(clk),
+    .reset(reset),
+    .screen_in(screen_out),
+    .screen_addr(screen_addr),
+    .vga_hs(vga_hs),
+    .vga_vs(vga_vs),
+    .vga_r(vga_r),
+    .vga_b(vga_b),
+    .vga_g(vga_g)
     );
+    
 endmodule // Hack

@@ -15,6 +15,7 @@ module Screen_Memory_Counter(input wire clk,
     localparam MAX_ADDRESS_REG          = FIRST_SCREEN_REG_ADDR + ((H_DISPLAY * V_DISPLAY) / 16) - 1; // 16 is bit-width of current_word
     localparam ADDRESSES_PER_SCREEN_ROW = H_DISPLAY / 16;
     
+    
     // registers to track the screen address and bit of the corresponding word to read out
     reg [15:0] screen_addr_internal;
     reg [3:0] bit_index_internal;
