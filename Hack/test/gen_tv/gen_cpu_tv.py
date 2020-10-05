@@ -1,4 +1,4 @@
-'''
+"""
 script for generating the testvector file for use in ALU_tb.v
 
 Format will be:
@@ -22,12 +22,12 @@ Algorithm:
     might be better because formal verification might make it easier to specify and test all the possible
     edge cases. Perhaps I'm being lazy, but trying to do that using my python simulations for a machine as 
     complex as the CPU is seems extremely daunting.
-'''
+"""
 from simulators.cpu import CPUSimulator
 from simulators.alu import ALUSimulator, UnkownALUFunction
 from random import randint
 
-OUTPUT_FILE = 'tvs/CPU.tv'  # expects to be run from directory above this
+OUTPUT_FILE = "tvs/CPU.tv"  # expects to be run from directory above this
 N = 100000
 i = 0
 
@@ -39,42 +39,42 @@ cpusim = CPUSimulator()
 
 
 def gen_random_instruction() -> str:
-  '''
-  Function for generating a random instruction since there are some rules instructions should play by.
-  '''
-  possible_instruction = cpusim.int_to_bin_str(
-      randint(-32768, 32767), cpusim.WIDTH)
+    """
+    Function for generating a random instruction since there are some rules instructions should play by.
+    """
+    possible_instruction = cpusim.int_to_bin_str(randint(-32768, 32767), cpusim.WIDTH)
 
-  if GENERATE_ONLY_A_INSTRUCTIONS:
-    return '0' + possible_instruction[1:]
+    if GENERATE_ONLY_A_INSTRUCTIONS:
+        return "0" + possible_instruction[1:]
 
-  if possible_instruction[0] == '0':
-    # if this is an A instruction go ahead and return it right away
-    return possible_instruction
-  else:
-    # else this is a C instruction, possible_instruction[1:3] == '1'
-    # per the specification 4.2.3 The C-Instruction
-    possible_instruction = possible_instruction[
-        0] + '11' + possible_instruction[3:]
-    # a[4:10] must be a valid function for the alu
-    possible_instruction = possible_instruction[0:4] + \
-      ALUSimulator.funcs[randint(0, len(ALUSimulator.funcs) - 1)] + \
-      possible_instruction[10:]
-    return possible_instruction
-
-
-with open(OUTPUT_FILE, 'w') as f:
-  while i < N:
-    inM = randint(-32768, 32767)
-    instruction = gen_random_instruction()
-    if (i == 0):
-      reset = True
+    if possible_instruction[0] == "0":
+        # if this is an A instruction go ahead and return it right away
+        return possible_instruction
     else:
-      # TODO: make reset = bool(randint(0, 1)), this
-      # current setup is just easier for debugging purposes
-      reset = False
-    try:
-      f.write(cpusim.build_line(inM, instruction, reset))
-      i += 1
-    except UnkownALUFunction as e:
-      continue
+        # else this is a C instruction, possible_instruction[1:3] == '1'
+        # per the specification 4.2.3 The C-Instruction
+        possible_instruction = possible_instruction[0] + "11" + possible_instruction[3:]
+        # a[4:10] must be a valid function for the alu
+        possible_instruction = (
+            possible_instruction[0:4]
+            + ALUSimulator.funcs[randint(0, len(ALUSimulator.funcs) - 1)]
+            + possible_instruction[10:]
+        )
+        return possible_instruction
+
+
+with open(OUTPUT_FILE, "w") as f:
+    while i < N:
+        inM = randint(-32768, 32767)
+        instruction = gen_random_instruction()
+        if i == 0:
+            reset = True
+        else:
+            # TODO: make reset = bool(randint(0, 1)), this
+            # current setup is just easier for debugging purposes
+            reset = False
+        try:
+            f.write(cpusim.build_line(inM, instruction, reset))
+            i += 1
+        except UnkownALUFunction as e:
+            continue
