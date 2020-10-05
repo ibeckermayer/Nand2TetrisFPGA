@@ -17,8 +17,8 @@ module Hack (input wire clk,
     wire [14:0] screen_addr;
     wire [14:0] screen_out;
     
-    // instantiate instruction memory
-    RAMROM #(15, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/write_every_other_pixel.hack") instr_mem
+    // instantiate ROM
+    RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/write_every_other_pixel.hack") instr_mem
     (
     .clk(clk),
     .address(cpu_pc_to_rom_address),	      // input
