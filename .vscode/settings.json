@@ -9,5 +9,6 @@
     "stdbool.h": "c",
     "stdio.h": "c",
     "symboltable.h": "c"
-  }
+  },
+  "python.pythonPath": "VMtranslator/venv/bin/python"
 }

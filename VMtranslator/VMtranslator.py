@@ -4,6 +4,7 @@ from enum import Enum
 
 
 class CommandType(Enum):
+    SKIP = 0
     ARITHMETIC = 1
     PUSH = 2
     POP = 3
@@ -47,14 +48,18 @@ class Parser:
             '''
             Called after reading a new line in order to set the command type
             '''
-            if (self.cur_line_split[0] == 'add' or
-                    self.cur_line_split[0] == 'sub' or
-                    self.cur_line_split[0] == 'neg' or
-                    self.cur_line_split[0] == 'eq' or
-                    self.cur_line_split[0] == 'gt' or
-                    self.cur_line_split[0] == 'lt' or
-                    self.cur_line_split[0] == 'and' or
-                    self.cur_line_split[0] == 'or' or
+            if self.cur_line[:2] == '//' or self.cur_line == '\n':
+                self.command_type = CT.SKIP
+                return
+
+            self.cur_line = self.cur_line.strip('\n')
+            # Split the line into tokens for future processing
+            self.cur_line_split = self.cur_line.split()
+
+            if (self.cur_line_split[0] == 'add' or self.cur_line_split[0] == 'sub' or
+                    self.cur_line_split[0] == 'neg' or self.cur_line_split[0] == 'eq' or
+                    self.cur_line_split[0] == 'gt' or self.cur_line_split[0] == 'lt' or
+                    self.cur_line_split[0] == 'and' or self.cur_line_split[0] == 'or' or
                     self.cur_line_split[0] == 'not'):
                 self.command_type = CT.ARITHMETIC
             elif ('push' == self.cur_line_split[0]):
@@ -69,14 +74,7 @@ class Parser:
         if self.cur_line == '':
             return self.cur_line
 
-        # If this is a blank or commented line, skip it and advance to the next line
-        if self.cur_line[:2] == '//' or self.cur_line == '\n':
-            self.advance()
-        else:  # Otherwise set the command type
-            self.cur_line = self.cur_line.strip('\n')
-            # Split the line into tokens for future processing
-            self.cur_line_split = self.cur_line.split()
-            set_command_type()
+        set_command_type()
 
         return self.cur_line
 
@@ -126,8 +124,7 @@ class CodeWriter:
             )
             self.output_file.write("M=D+M // Replace x with y+x\n")
             self.SP += 1
-            self.output_file.write(
-                f"// Increment stack pointer, now at {self.SP}\n")
+            self.output_file.write(f"// Increment stack pointer, now at {self.SP}\n")
             self.output_file.write('\n')
 
         return
@@ -145,20 +142,17 @@ class CodeWriter:
             // Increment the stack pointer, now at 257
             '''
             val: str = parser.cur_line_split[2]
-            self.output_file.write(
-                f"// VM: {' '.join(parser.cur_line_split[:3])}\n")
+            self.output_file.write(f"// VM: {' '.join(parser.cur_line_split[:3])}\n")
             self.output_file.write(f"// stack pointer at {self.SP}\n")
             self.output_file.write(f"@{val} // Load {val} into the A reg\n")
             self.output_file.write(f"D=A // Move {val} to the D reg\n")
             self.output_file.write(
-                f"@{self.SP} // Load the stack pointer {self.SP} into the A reg\n"
-            )
+                f"@{self.SP} // Load the stack pointer {self.SP} into the A reg\n")
             self.output_file.write(f"M=D // RAM[{self.SP}] = {val}\n")
 
             # Increment the stack pointer
             self.SP += 1
-            self.output_file.write(
-                f"// Increment the stack pointer, now at {self.SP}\n")
+            self.output_file.write(f"// Increment the stack pointer, now at {self.SP}\n")
             self.output_file.write('\n')
 
     def write_pop(self, parser: Parser):
@@ -179,11 +173,8 @@ class VMtranslator:
         # If directory_or_filename is a filename, check that its a .vm file
         if '.' in directory_or_filename:
             if directory_or_filename.split('.')[-1] != 'vm':
-                raise RuntimeError(
-                    "Files passed to VMTranslator must end with the .vm extension"
-                )
-            self.parsers.append(
-                Parser(directory_or_filename))  # only one parser
+                raise RuntimeError("Files passed to VMTranslator must end with the .vm extension")
+            self.parsers.append(Parser(directory_or_filename))  # only one parser
         else:
             # Else directory_or_filename is a directory, walk through each file and give it a parser
             for filename in os.listdir(directory_or_filename):
@@ -191,8 +182,7 @@ class VMtranslator:
                     self.parsers.append(Parser(filename))
 
         # Create CodeWriter
-        self.codewriter = CodeWriter(
-            directory_or_filename.split('.')[0].strip('/') + '.asm')
+        self.codewriter = CodeWriter(directory_or_filename.split('.')[0].strip('/') + '.asm')
 
     def run(self):
         '''
@@ -205,12 +195,17 @@ class VMtranslator:
                 # print(parser.cur_line)
                 # parser parses the input, codewriter translates tokens to assembly, this section
                 # contains the logic for which codewrite function to pass the parser to
-                if parser.command_type == CT.ARITHMETIC:
+                if parser.command_type == CT.SKIP:
+                    continue
+                elif parser.command_type == CT.ARITHMETIC:
                     self.codewriter.write_arithmetic(parser)
                 elif parser.command_type == CT.PUSH:
                     self.codewriter.write_push(parser)
                 elif parser.command_type == CT.POP:
                     self.codewriter.write_pop(parser)
+
+        # Don't forget to close the output file when you're done
+        self.codewriter.output_file.close()
 
 
 if __name__ == "__main__":
