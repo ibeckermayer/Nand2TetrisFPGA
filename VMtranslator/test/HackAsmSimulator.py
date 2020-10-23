@@ -8,12 +8,20 @@ from numpy import int16, uint16
 from collections.abc import MutableSequence
 
 
+class LineType(Enum):
+    A_COMMAND = 1
+    C_COMMAND = 2
+    L_COMMAND = 3
+    SKIP = 4
+    EOF = 5
+
+
+LT = LineType
+
+
 class CommandType(Enum):
     A_COMMAND = 1
     C_COMMAND = 2
-    L_COMMAND = 3  # Pseudo instruction for i.e. `(LOOP)`
-    SKIP = 4  # Pseudo instruction for empty lines or fully commented lines
-    EOF = 5  # Pseudo instruction to denote we're at the EOF
 
 
 CT = CommandType  # Alias
@@ -32,14 +40,19 @@ class Instruction:
 class AsmParser:
     '''
     Used to step through a Hack assembly file and generate a list of Instruction to be fed into the HackExecutor
+
+    Two pass parser: first steps through the file and builds the symbol table, then steps through again to create the instructions
     '''
 
     def __init__(self, filename: str):
         self.filename = filename
         self.file: TextIO = open(self.filename, 'r')
         self.cur_line: str
-        self.cur_line_num: int = 0  # Only increments on executable lines, i.e. not comments/blank lines/L commands
-        self.line_type: CommandType
+        # The next machine code line number. Gets incremented after each A_COMMAND or C_COMMAND,
+        # so that subsequent L_COMMAND's know which line they should be set to
+        self.machine_code_line_num: int = 0  # Only increments on executable lines, i.e. only A_COMMAND's and C_COMMAND's; 0 indexed
+        self.line_type: LineType
+        self.first_pass: bool = True  # True for first pass, false for second pass
         self.symbol_table: Dict[str, str] = {
             'R0': '0',
             'R1': '1',
@@ -64,104 +77,122 @@ class AsmParser:
             'THAT': '4'
         }
         self.next_unknown_symbol = 16
+        self.instructions: List[Instruction] = []  # Filled out in the second pass
 
-    def advance(self) -> Instruction:
+    def build_symbol_table(self):
         '''
-        To be called in a loop to advance through the file
-        returning None represents EOF
+        First pass of the parser which runs through the full file and builds out the symbol table
+        '''
+        pass
+
+    def advance(self) -> str:
+        '''
+        Advances to the next line of the file and updates the state of the parser.
+        If this is the first pass, updates the symbol table as appropriate.
+        If this is the second pass, replaces symbols with their respective values as appropriate.
         '''
         # Read the next line and strip leading/trailing spaces
         self.cur_line = self.file.readline().strip(' ')
 
-        # If this is the end of the file, return EOF instruction
+        # EOF
         if self.cur_line == '':
-            return Instruction(CT.EOF, {})
+            self.line_type = LT.EOF
+            # If this is the first pass, reset file, set first_pass flag to false, and reset machine_code_line_num
+            if self.first_pass:
+                self.file.seek(0)
+                self.first_pass = False
+                self.machine_code_line_num = 0
+            return self.cur_line
 
         # If this is a full line comment or empty line return a SKIP
         if self.cur_line == '\n' or self.cur_line[:2] == "//":
-            return Instruction(CT.SKIP, {})
+            self.line_type = LT.SKIP
+            return self.cur_line
 
         # Strip away all comments and newlines so the line is only the first token
         # i.e. "@45 // load 45 into the A reg\n" becomes "@45"
         self.cur_line = self.cur_line.split('//')[0].strip()
-        # Build the instruction
-        instruction = self.__build_instruction(self.cur_line, self.cur_line_num)
 
-        return instruction
+        # L_COMMAND
+        if self.cur_line[0] == "(":
+            self.line_type = LT.L_COMMAND
+            if self.first_pass:
+                # On first pass, update symbol table with L_COMMAND's
+                self.symbol_table[self.cur_line[1:-1]] = str(self.machine_code_line_num)
+            return self.cur_line
 
-    def __build_instruction(self, cur_line: str, cur_line_num: int) -> Instruction:
-        '''
-        cur_line has been stripped of all extra comments and spaces
-        If this is an L command, updates the symbol table and returns None
-        Otherwise deciphers the instruction and returns a corresponding Instruction object
-        '''
-
-        if cur_line[0] == "(":  # L_COMMAND, i.e. `(LOOP)`
-            symbol = cur_line[1:-1]  # extract symbol
-            self.symbol_table[symbol] = str(cur_line_num)  # update symbol table
-            return Instruction(CT.L_COMMAND, {})
-        elif cur_line[0] == '@':  # A_COMMAND
-            # increment the cur_line_num to track future L_COMMAND's
-            self.cur_line_num = cur_line_num + 1
-
-            if cur_line[1].isdigit():
-                # Easy case: the next digit is numerical
-                return Instruction(CT.A_COMMAND, {'val': cur_line[1:]})
-            elif cur_line[1].isalpha():
-                # Trickier case: the next digit is a letter, so we're dealing with a symbol
-                sym_val = self.symbol_table.get(cur_line[1:])
-                if sym_val is not None:
-                    # This symbol has already been declared and registered in the symbol table,
-                    # return an A_COMMAND with its value
-                    return Instruction(CT.A_COMMAND, {'val': sym_val})
-                else:
-                    # This is a new symbol, assign it a value
-                    new_sym = cur_line[1:]
-                    new_sym_val = str(self.next_unknown_symbol)
-                    self.symbol_table[new_sym] = new_sym_val
+        # A_COMMAND
+        if self.cur_line[0] == '@':
+            self.line_type = LT.A_COMMAND
+            if self.first_pass and self.cur_line[1].isalpha():
+                # On first pass, if this is a symbol, update the symbol table iif the symbol dne
+                if self.symbol_table.get(self.cur_line[1:]) == None:
+                    self.symbol_table[self.cur_line[1:]] = str(self.next_unknown_symbol)
                     self.next_unknown_symbol += 1
-                    return Instruction(CT.A_COMMAND, {'val': new_sym_val})
-        else:  # C_COMMAND `dest=comp;jump`, dest and jump are optional
-            dest = ''
-            comp = ''
-            jump = ''
-            buf = cur_line
-            if '=' in cur_line:
-                split_buf = buf.split('=')
-                # Extract dest
-                dest = split_buf[0]
-                # Remove it from buf
-                buf = split_buf[-1]
-            if ';' in cur_line:
-                split_buf = buf.split(';')
-                # Extract jump
-                jump = split_buf[-1]
-                # Remove it from buf
-                buf = split_buf[0]
-            # Only comp is left over
-            comp = buf
-            return Instruction(CT.C_COMMAND, {'dest': dest, 'comp': comp, 'jump': jump})
+            else:
+                self.append_A_instr(self.cur_line)
+            self.machine_code_line_num += 1
+            return self.cur_line
+        else:  # C_COMMAND
+            self.line_type = LT.C_COMMAND
+            if self.first_pass:
+                pass
+            else:
+                self.append_C_instr(self.cur_line)
+            self.machine_code_line_num += 1
+            return self.cur_line
 
-        # Should never reach here
-        raise RuntimeError(
-            "__build_instruction reached a point in the control flow it shouldn't have!")
-        return Instruction(CT.SKIP, {})
+        # Build the instruction
+        instruction = self.__build_instruction(self.cur_line, self.machine_code_line_num)
+
+        return ''
+
+    def append_A_instr(self, cur_line: str):
+        val = cur_line[1:]  # remove '@'
+        if val[0].isalpha():
+            val = self.symbol_table[val]
+        self.instructions.append(Instruction(CT.A_COMMAND, {'val': val}))
+
+    def append_C_instr(self, cur_line: str):
+        dest = ''
+        comp = ''
+        jump = ''
+        buf = cur_line
+        if '=' in cur_line:
+            split_buf = buf.split('=')
+            # Extract dest
+            dest = split_buf[0]
+            # Remove it from buf
+            buf = split_buf[-1]
+        if ';' in cur_line:
+            split_buf = buf.split(';')
+            # Extract jump
+            jump = split_buf[-1]
+            # Remove it from buf
+            buf = split_buf[0]
+        # Only comp is left over
+        comp = buf
+        self.instructions.append(
+            Instruction(CT.C_COMMAND, {
+                'dest': dest,
+                'comp': comp,
+                'jump': jump
+            }))
 
     def run(self) -> List[Instruction]:
         '''
         Walk through the input file and generate a list of instructions to be passed into the HackExecutor
         '''
-        instructions: List[Instruction] = []
-        while True:
-            instruction: Instruction = self.advance()
-            if instruction.type == CT.A_COMMAND or instruction.type == CT.C_COMMAND:
-                instructions.append(instruction)
-            elif instruction.type == CT.EOF:
-                self.file.close()
-                break
+        # Run first pass to fill out symbol table
+        while self.advance():
+            continue
 
-        # Should never reach here
-        return instructions
+        # Run second pass to fill out list of instructions
+        while self.advance():
+            continue
+
+        # Return the list
+        return self.instructions
 
 
 class RAM32K(MutableSequence):
@@ -261,8 +292,6 @@ class HackExecutor:
             self.__handle_comp(ins.val['comp'])
             self.__handle_jump(ins.val['jump'])
             self.__handle_dest(ins.val['dest'])
-        else:
-            raise RuntimeError(f"Instruction of type {ins.type} somehow got into the executor")
 
     def __handle_comp(self, comp: str):
         '''
