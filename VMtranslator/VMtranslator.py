@@ -102,6 +102,8 @@ class CodeWriter:
                 ---------               ---------
         SP -->  |       |               |       |
                 ---------               ---------
+        
+        NOTE: Any time dest=M, the stack pointer should be incremented (self.SP += 1)
         '''
         if parser.cur_line_split[0] == "add":
             # // add
@@ -147,6 +149,7 @@ class CodeWriter:
             self.SP -= 1
             self.output_file.write(f"@{self.SP}\n")
             self.output_file.write(f"M=-M\n")
+            self.SP += 1
         elif parser.cur_line_split[0] == "eq":
             # // eq
             # // SP--
