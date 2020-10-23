@@ -96,45 +96,87 @@ class CodeWriter:
                 ---------               ---------
                 |  ...  |               |  ...  |
                 ---------               ---------
-                |   x   |      add      |  x+y  |
+            x*  |   x   |      add      |  x+y  |
                 ---------   ========>   ---------
-                |   y   |               |       |  <-- SP
+            y*  |   y   |               |       |  <-- SP
                 ---------               ---------
         SP -->  |       |               |       |
                 ---------               ---------
         '''
         if parser.cur_line_split[0] == "add":
-            # // VM: add
-            # // stack pointer at 258
-            # @257 // Decrement the stack pointer (now pointing to y) and load it into the A reg
-            # D=M // Load y into the D reg
-            # @256 // Decrement the stack pointer (now pointing to x) and load it into the A reg
-            # M=D+M // Replace x with y+x
-            # // Increment stack pointer, now at 257
-            self.output_file.write("// VM: add\n")
-            self.output_file.write(f"// stack pointer at {self.SP}\n")
+            # // add
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # M=D+M // RAM[*x] = y + x
+            # // SP++
+            self.output_file.write(f"// add\n")
             self.SP -= 1
-            self.output_file.write(
-                f"@{self.SP} // Decrement the stack pointer (now pointing to y) and load it into the A reg\n"
-            )
-            self.output_file.write("D=M // Load y into the D reg\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
             self.SP -= 1
-            self.output_file.write(
-                f"@{self.SP} // Decrement the stack pointer (now pointing to x) and load it into the A reg\n"
-            )
-            self.output_file.write("M=D+M // Replace x with y+x\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D+M\n")
             self.SP += 1
-            self.output_file.write(f"// Increment stack pointer, now at {self.SP}\n")
-            self.output_file.write('\n')
+        elif parser.cur_line_split[0] == "sub":
+            # // sub
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # M=M-D // RAM[*x] = x - y
+            # // SP++
+            self.output_file.write(f"// sub\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=M-D\n")
+            self.SP += 1
+        elif parser.cur_line_split[0] == "neg":
+            # // neg
+            # // SP--
+            # @SP // A = *y
+            # M=-M // Negate y and replace it with it's negated value
+            # // Increment stack pointer, now at 258
+            self.output_file.write(f"// neg\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=-M\n")
+        elif parser.cur_line_split[0] == "eq":
+            # // eq
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # D=M-D // D = x - y, 0 if eq is True
+            # @eq0True // Load instruction for true case into the A register
+            # D;JEQ // If D == 0, x==y. Jump over the false case to the true
+            # // false case: if x != y
+            # @SP // A = *x
+            # M=0 // RAM[*x] = 0 (False)
+            # @eq0TrueEnd // Load instruction to skip the true case
+            # 0;JMP // jump over the true case
+            # (eq0True) // true case: elif x == y
+            # @SP // A = *x
+            # M=-1 // RAM[*x] = -1 (True)
+            # (eq0TrueEnd)
+            # // SP++
+            pass  # TODO
 
-        return
+        self.output_file.write(f'\n')
 
     def write_push(self, parser: Parser):
 
         if parser.cur_line_split[1] == "constant":
             '''
-            // VM: push constant 2
-            // stack pointer at 256
+            // push constant 2
+            // SP = 256
             @2 // Load 2 into the A reg
             D=A // Move 2 to the D reg
             @256 // Load the stack pointer 256 into the A reg
@@ -142,21 +184,17 @@ class CodeWriter:
             // Increment the stack pointer, now at 257
             '''
             val: str = parser.cur_line_split[2]
-            self.output_file.write(f"// VM: {' '.join(parser.cur_line_split[:3])}\n")
-            self.output_file.write(f"// stack pointer at {self.SP}\n")
-            self.output_file.write(f"@{val} // Load {val} into the A reg\n")
-            self.output_file.write(f"D=A // Move {val} to the D reg\n")
-            self.output_file.write(
-                f"@{self.SP} // Load the stack pointer {self.SP} into the A reg\n")
-            self.output_file.write(f"M=D // RAM[{self.SP}] = {val}\n")
-
-            # Increment the stack pointer
+            self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
+            self.output_file.write(f"@{val}\n")
+            self.output_file.write(f"D=A\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D\n")
             self.SP += 1
-            self.output_file.write(f"// Increment the stack pointer, now at {self.SP}\n")
-            self.output_file.write('\n')
+
+        self.output_file.write(f'\n')
 
     def write_pop(self, parser: Parser):
-        return
+        pass
 
 
 class VMtranslator:

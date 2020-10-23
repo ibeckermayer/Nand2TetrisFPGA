@@ -157,6 +157,7 @@ class AsmParser:
             if instruction.type == CT.A_COMMAND or instruction.type == CT.C_COMMAND:
                 instructions.append(instruction)
             elif instruction.type == CT.EOF:
+                self.file.close()
                 break
 
         # Should never reach here
