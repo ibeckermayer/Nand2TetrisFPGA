@@ -10,7 +10,7 @@ def test_SimpleAdd():
     VMtranslator('test/SimpleAdd.vm').run()
     # Load the resulting asm file into the HackExecutor
     hack = HackExecutor(AsmParser('test/SimpleAdd.asm').run())
-    # Run each instruction
+    # Simulate program to the end
     while True:
         if hack.step().type == CT.END:
             break
@@ -23,7 +23,7 @@ def test_SimpleSub():
     VMtranslator('test/SimpleSub.vm').run()
     # Load the resulting asm file into the HackExecutor
     hack = HackExecutor(AsmParser('test/SimpleSub.asm').run())
-    # Run each instruction
+    # Simulate program to the end
     while True:
         if hack.step().type == CT.END:
             break
@@ -36,7 +36,7 @@ def test_SimpleNeg():
     VMtranslator('test/SimpleNeg.vm').run()
     # Load the resulting asm file into the HackExecutor
     hack = HackExecutor(AsmParser('test/SimpleNeg.asm').run())
-    # Run each instruction
+    # Simulate program to the end
     while True:
         if hack.step().type == CT.END:
             break
@@ -49,10 +49,14 @@ def test_SimpleEq():
     VMtranslator('test/SimpleEq.vm').run()
     # Load the resulting asm file into the HackExecutor
     hack = HackExecutor(AsmParser('test/SimpleEq.asm').run())
-    # Run each instruction
+    # Force set the top of the stack to != -1/0, so that we to confirm memory is being set by arithmetic command
+    for i in [256, 257, 258]:
+        hack.ram[i] = 1
+    # Simulate program to the end
     while True:
         if hack.step().type == CT.END:
             break
 
-    assert hack.ram[256] == -1
-    assert hack.ram[257] == 0
+    assert hack.ram[256] == 0
+    assert hack.ram[257] == -1
+    assert hack.ram[258] == 0
