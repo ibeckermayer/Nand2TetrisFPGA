@@ -22,6 +22,7 @@ LT = LineType
 class CommandType(Enum):
     A_COMMAND = 1
     C_COMMAND = 2
+    END = 3  # psuedo command, signals simulation to stop
 
 
 CT = CommandType  # Alias
@@ -102,6 +103,8 @@ class AsmParser:
                 self.file.seek(0)
                 self.first_pass = False
                 self.machine_code_line_num = 0
+            else:
+                self.instructions.append(Instruction(CT.END, {}))
             return self.cur_line
 
         # If this is a full line comment or empty line return a SKIP
@@ -124,11 +127,12 @@ class AsmParser:
         # A_COMMAND
         if self.cur_line[0] == '@':
             self.line_type = LT.A_COMMAND
-            if self.first_pass and self.cur_line[1].isalpha():
-                # On first pass, if this is a symbol, update the symbol table iif the symbol dne
-                if self.symbol_table.get(self.cur_line[1:]) == None:
-                    self.symbol_table[self.cur_line[1:]] = str(self.next_unknown_symbol)
-                    self.next_unknown_symbol += 1
+            if self.first_pass:
+                if self.cur_line[1].isalpha():
+                    # On first pass, if this is a symbol, update the symbol table iif the symbol dne
+                    if self.symbol_table.get(self.cur_line[1:]) == None:
+                        self.symbol_table[self.cur_line[1:]] = str(self.next_unknown_symbol)
+                        self.next_unknown_symbol += 1
             else:
                 self.append_A_instr(self.cur_line)
             self.machine_code_line_num += 1
@@ -277,7 +281,7 @@ class HackExecutor:
     def ALU_output(self, val):
         self._ALU_output = int16(val)
 
-    def step(self):
+    def step(self) -> Instruction:
         '''
         Executes a single instruction
         '''
@@ -292,6 +296,8 @@ class HackExecutor:
             self.__handle_comp(ins.val['comp'])
             self.__handle_jump(ins.val['jump'])
             self.__handle_dest(ins.val['dest'])
+        # else: ins.type == CT.END
+        return ins
 
     def __handle_comp(self, comp: str):
         '''

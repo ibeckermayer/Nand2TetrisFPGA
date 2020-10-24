@@ -85,6 +85,7 @@ class CodeWriter:
         self.output_file = open(output_filename, 'w')
         # Initialize the stack pointer to 256 (see page 170 in the pdf of the book for the spec)
         self.SP = 256
+        self.eq_num = 0  # Used as an identifier in `eq` operations
 
     def write_arithmetic(self, parser: Parser):
         '''
@@ -170,7 +171,25 @@ class CodeWriter:
             # M=-1 // RAM[*x] = -1 (True)
             # (eq0TrueEnd)
             # // SP++
-            pass  # TODO
+            self.output_file.write(f"// eq\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M-D\n")
+            self.output_file.write(f"@eq{self.eq_num}True\n")
+            self.output_file.write(f"D;JEQ\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=0\n")
+            self.output_file.write(f"@eq{self.eq_num}TrueEnd\n")
+            self.output_file.write(f"0;JMP\n")
+            self.output_file.write(f"(eq{self.eq_num}True)\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=-1\n")
+            self.output_file.write(f"(eq{self.eq_num}TrueEnd)\n")
+            self.SP += 1
+            self.eq_num += 1
 
         self.output_file.write(f'\n')
 
