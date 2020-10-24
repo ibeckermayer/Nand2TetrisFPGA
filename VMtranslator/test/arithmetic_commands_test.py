@@ -60,3 +60,39 @@ def test_SimpleEq():
     assert hack.ram[256] == 0
     assert hack.ram[257] == -1
     assert hack.ram[258] == 0
+
+
+def test_SimpleGt():
+    # Run the VMtranslator
+    VMtranslator('test/SimpleGt.vm').run()
+    # Load the resulting asm file into the HackExecutor
+    hack = HackExecutor(AsmParser('test/SimpleGt.asm').run())
+    # Force set the top of the stack to != -1/0, so that we to confirm memory is being set by arithmetic command
+    for i in [256, 257, 258]:
+        hack.ram[i] = 1
+    # Simulate program to the end
+    while True:
+        if hack.step().type == CT.END:
+            break
+
+    assert hack.ram[256] == 0
+    assert hack.ram[257] == 0
+    assert hack.ram[258] == -1
+
+
+def test_SimpleLt():
+    # Run the VMtranslator
+    VMtranslator('test/SimpleLt.vm').run()
+    # Load the resulting asm file into the HackExecutor
+    hack = HackExecutor(AsmParser('test/SimpleLt.asm').run())
+    # Force set the top of the stack to != -1/0, so that we to confirm memory is being set by arithmetic command
+    for i in [256, 257, 258]:
+        hack.ram[i] = 1
+    # Simulate program to the end
+    while True:
+        if hack.step().type == CT.END:
+            break
+
+    assert hack.ram[256] == -1
+    assert hack.ram[257] == 0
+    assert hack.ram[258] == 0

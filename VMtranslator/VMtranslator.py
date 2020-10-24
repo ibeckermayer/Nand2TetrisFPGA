@@ -86,6 +86,8 @@ class CodeWriter:
         # Initialize the stack pointer to 256 (see page 170 in the pdf of the book for the spec)
         self.SP = 256
         self.eq_num = 0  # Used as an identifier in `eq` operations
+        self.gt_num = 0  # Used as an identifier in `gt` operations
+        self.lt_num = 0  # Used as an identifier in `lt` operations
 
     def write_arithmetic(self, parser: Parser):
         '''
@@ -190,6 +192,84 @@ class CodeWriter:
             self.output_file.write(f"(eq{self.eq_num}TrueEnd)\n")
             self.SP += 1
             self.eq_num += 1
+        elif parser.cur_line_split[0] == "gt":
+            # // gt
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # D=M-D // D = x - y, positive if gt is True
+            # @gt0True // Load instruction for true case into the A register
+            # D;JGT // If D == 0, x==y. Jump over the false case to the true
+            # // false case: if x != y
+            # @SP // A = *x
+            # M=0 // RAM[*x] = 0 (False)
+            # @gt0TrueEnd // Load instruction to skip the true case
+            # 0;JMP // jump over the true case
+            # (gt0True) // true case: elif x == y
+            # @SP // A = *x
+            # M=-1 // RAM[*x] = -1 (True)
+            # (gt0TrueEnd)
+            # // SP++
+            self.output_file.write(f"// gt\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M-D\n")
+            self.output_file.write(f"@gt{self.gt_num}True\n")
+            self.output_file.write(f"D;JGT\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=0\n")
+            self.output_file.write(f"@gt{self.gt_num}TrueEnd\n")
+            self.output_file.write(f"0;JMP\n")
+            self.output_file.write(f"(gt{self.gt_num}True)\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=-1\n")
+            self.output_file.write(f"(gt{self.gt_num}TrueEnd)\n")
+            self.SP += 1
+            self.gt_num += 1
+        elif parser.cur_line_split[0] == "lt":
+            # // lt
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # D=M-D // D = x - y, positive if lt is True
+            # @lt0True // Load instruction for true case into the A register
+            # D;JLT // If D == 0, x==y. Jump over the false case to the true
+            # // false case: if x != y
+            # @SP // A = *x
+            # M=0 // RAM[*x] = 0 (False)
+            # @lt0TrueEnd // Load instruction to skip the true case
+            # 0;JMP // jump over the true case
+            # (lt0True) // true case: elif x == y
+            # @SP // A = *x
+            # M=-1 // RAM[*x] = -1 (True)
+            # (lt0TrueEnd)
+            # // SP++
+            self.output_file.write(f"// lt\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M-D\n")
+            self.output_file.write(f"@lt{self.lt_num}True\n")
+            self.output_file.write(f"D;JLT\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=0\n")
+            self.output_file.write(f"@lt{self.lt_num}TrueEnd\n")
+            self.output_file.write(f"0;JMP\n")
+            self.output_file.write(f"(lt{self.lt_num}True)\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=-1\n")
+            self.output_file.write(f"(lt{self.lt_num}TrueEnd)\n")
+            self.SP += 1
+            self.lt_num += 1
 
         self.output_file.write(f'\n')
 
