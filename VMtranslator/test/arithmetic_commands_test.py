@@ -96,3 +96,42 @@ def test_SimpleLt():
     assert hack.ram[256] == -1
     assert hack.ram[257] == 0
     assert hack.ram[258] == 0
+
+
+def test_SimpleAnd():
+    # Run the VMtranslator
+    VMtranslator('test/SimpleAnd.vm').run()
+    # Load the resulting asm file into the HackExecutor
+    hack = HackExecutor(AsmParser('test/SimpleAnd.asm').run())
+    # Simulate program to the end
+    while True:
+        if hack.step().type == CT.END:
+            break
+    # Should wind up with 15 on the top of the stack
+    assert hack.ram[256] == 2
+
+
+def test_SimpleOr():
+    # Run the VMtranslator
+    VMtranslator('test/SimpleOr.vm').run()
+    # Load the resulting asm file into the HackExecutor
+    hack = HackExecutor(AsmParser('test/SimpleOr.asm').run())
+    # Simulate program to the end
+    while True:
+        if hack.step().type == CT.END:
+            break
+    # Should wind up with 15 on the top of the stack
+    assert hack.ram[256] == 3
+
+
+def test_SimpleNot():
+    # Run the VMtranslator
+    VMtranslator('test/SimpleNot.vm').run()
+    # Load the resulting asm file into the HackExecutor
+    hack = HackExecutor(AsmParser('test/SimpleNot.asm').run())
+    # Simulate program to the end
+    while True:
+        if hack.step().type == CT.END:
+            break
+    # Should wind up with 15 on the top of the stack
+    assert hack.ram[256] == -1

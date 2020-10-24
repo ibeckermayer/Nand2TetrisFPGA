@@ -270,6 +270,51 @@ class CodeWriter:
             self.output_file.write(f"(lt{self.lt_num}TrueEnd)\n")
             self.SP += 1
             self.lt_num += 1
+        elif parser.cur_line_split[0] == "and":
+            # // and
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # M=D&M // RAM[*x] = x - y
+            # // SP++
+            self.output_file.write(f"// and\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D&M\n")
+            self.SP += 1
+        elif parser.cur_line_split[0] == "or":
+            # // or
+            # // SP--
+            # @SP // A = *y
+            # D=M // D = y
+            # // SP--
+            # @SP // A = *x
+            # M=D|M // RAM[*x] = x - y
+            # // SP++
+            self.output_file.write(f"// or\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D|M\n")
+            self.SP += 1
+        elif parser.cur_line_split[0] == "not":
+            # // not
+            # // SP--
+            # @SP // A = *y
+            # M=!M // Negate y and replace it with it's negated value
+            # // Increment stack pointer, now at 258
+            self.output_file.write(f"// neg\n")
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=!M\n")
+            self.SP += 1
 
         self.output_file.write(f'\n')
 
