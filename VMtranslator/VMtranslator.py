@@ -80,14 +80,44 @@ class Parser:
 
 
 class CodeWriter:
+    '''
+    RAM Addresses
+    16-255: Static variables (1 segment per VM file)
+    256-2047: Stack (1 local and 1 argument segment per VM function)
+    2048-16483: Heap (used to store objects and arrays)
+    16384-24575: Memory mapped I/O
+
+    See "Figure 7.6 The memory segments seen by every VM function"
+    '''
 
     def __init__(self, output_filename: str):
         self.output_file = open(output_filename, 'w')
         # Initialize the stack pointer to 256 (see page 170 in the pdf of the book for the spec)
         self.SP = 256
+        # TODO: Initial vals of LCL, ARG are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
+        # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
+        self.LCL = 300  # allocated per VM function
+        self.ARG = 400  # allocated per VM function
+        self.STATIC = 16  # allocated per VM file
+        self.TEMP = 5  # constant, should never change
+        self.PTR = 3  # constant, should never change
+        self.THIS = 3000  # TODO: These can't be tracked virtually since they can be set by pointer
+        self.THAT = 3010  # TODO: These can't be tracked virtually since they can be set by pointer
         self.eq_num = 0  # Used as an identifier in `eq` operations
         self.gt_num = 0  # Used as an identifier in `gt` operations
         self.lt_num = 0  # Used as an identifier in `lt` operations
+        # TODO: Initial vals for this and that are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
+        # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
+        self.output_file.write(f"// init\n")
+        self.output_file.write(f"@3000\n")  # initial THIS value
+        self.output_file.write(f"D=A\n")
+        self.output_file.write(f"@{self.PTR}\n")
+        self.output_file.write(f"M=D\n")
+        self.output_file.write(f"@3010\n")  # initial THAT value
+        self.output_file.write(f"D=A\n")
+        self.output_file.write(f"@{self.PTR+1}\n")
+        self.output_file.write(f"M=D\n")
+        self.output_file.write(f'\n')
 
     def write_arithmetic(self, parser: Parser):
         '''
@@ -319,6 +349,44 @@ class CodeWriter:
         self.output_file.write(f'\n')
 
     def write_push(self, parser: Parser):
+        # Write a comment with the VM code for reference/debugging
+        self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
+
+        def __write_push_vtreg(base: int, offset: int):
+            '''
+            vtreg is short for "virtually tracked register"
+
+            To save instruction (ROM) space, the local (LCL), argument (ARG), static (STATIC), temp (TEMP),
+            and pointer (PTR), pointers are all tracked virtually by the CodeWriter.
+
+            This function provides the pattern for pushing the value pointed to by base + offset onto the stack
+            ex: `push static 3` --> __write_push_vtreg(self.STATIC, 3)
+            '''
+            self.output_file.write(f"@{base + offset}\n")
+            self.output_file.write(f"D=M\n")
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D\n")
+            self.SP += 1
+
+        def __write_push_thisthat(thisthat: str, offset: int):
+            '''
+            Writes a push instruction for this or that
+            '''
+            ptr: int = self.PTR if thisthat == 'this' else self.PTR + 1
+            # Load this or that pointer into the CPU and add offset
+            self.output_file.write(f"@{ptr}\n")
+            if offset > 0:
+                self.output_file.write(f"D=M\n")
+                self.output_file.write(f"@{offset}\n")
+                self.output_file.write(f"A=D+A\n")
+            else:
+                self.output_file.write(f"A=M\n")
+            # Now grab the value being pointed to
+            self.output_file.write(f"D=M\n")
+            # And push onto stack
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"M=D\n")
+            self.SP += 1
 
         if parser.cur_line_split[1] == "constant":
             '''
@@ -331,16 +399,90 @@ class CodeWriter:
             // Increment the stack pointer, now at 257
             '''
             val: str = parser.cur_line_split[2]
-            self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
+
             self.output_file.write(f"@{val}\n")
             self.output_file.write(f"D=A\n")
             self.output_file.write(f"@{self.SP}\n")
             self.output_file.write(f"M=D\n")
             self.SP += 1
+        elif parser.cur_line_split[1] == "local":
+            __write_push_vtreg(self.LCL, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "argument":
+            __write_push_vtreg(self.ARG, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "static":
+            __write_push_vtreg(self.STATIC, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "temp":
+            __write_push_vtreg(self.TEMP, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "pointer":
+            __write_push_vtreg(self.PTR, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "this" or parser.cur_line_split[1] == "that":
+            __write_push_thisthat(parser.cur_line_split[1], int(parser.cur_line_split[2]))
+        else:
+            raise RuntimeError(f"Unkown push command: {' '.join(parser.cur_line_split[:3])}")
 
         self.output_file.write(f'\n')
 
     def write_pop(self, parser: Parser):
+        self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
+
+        def __write_pop_vtreg(base: int, offset: int):
+            '''
+            vtreg is short for "virtually tracked register"
+
+            This function provides the pattern for popping the value at the top of the stack off into the
+            register pointed at by base + offset
+            ex: `pop static 3` --> __write_pop_vtreg(self.STATIC, 3)
+            '''
+            # Pop value from the top of the stack into the D reg
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+
+            # Copy D reg into base + offset
+            self.output_file.write(f"@{base + offset}\n")
+            self.output_file.write(f"M=D\n")
+
+        def __write_pop_thisthat(thisthat: str, offset: int):
+            '''
+            Writes a pop instruction for this or that
+            '''
+            ptr: int = self.PTR if thisthat == 'this' else self.PTR + 1
+            # Load this or that pointer into the CPU and add offset, then save it in R13
+            self.output_file.write(f"@{ptr}\n")
+            self.output_file.write(f"D=M\n")
+            if offset > 0:
+                self.output_file.write(f"@{offset}\n")
+                self.output_file.write(f"D=D+A\n")
+            self.output_file.write(f"@R13\n")
+            self.output_file.write(f"M=D\n")
+
+            # Pop the top value off the stack and save it in D
+            self.SP -= 1
+            self.output_file.write(f"@{self.SP}\n")
+            self.output_file.write(f"D=M\n")
+
+            # Now grab the this or that pointer from R13, and set the memory it points to
+            # to the previously-top-of-the-stack value stored in D
+            self.output_file.write(f"@R13\n")
+            self.output_file.write(f"A=M\n")
+            self.output_file.write(f"M=D\n")
+
+        if parser.cur_line_split[1] == "local":
+            __write_pop_vtreg(self.LCL, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "argument":
+            __write_pop_vtreg(self.ARG, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "static":
+            __write_pop_vtreg(self.STATIC, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "temp":
+            __write_pop_vtreg(self.TEMP, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "pointer":
+            __write_pop_vtreg(self.PTR, int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "this" or parser.cur_line_split[1] == "that":
+            __write_pop_thisthat(parser.cur_line_split[1], int(parser.cur_line_split[2]))
+        else:
+            raise RuntimeError(f"Unkown pop command: {' '.join(parser.cur_line_split[:3])}")
+
+        self.output_file.write(f'\n')
         pass
 
 
