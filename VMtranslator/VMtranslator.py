@@ -101,8 +101,6 @@ class CodeWriter:
         self.STATIC = 16  # allocated per VM file
         self.TEMP = 5  # constant, should never change
         self.PTR = 3  # constant, should never change
-        self.THIS = 3000  # TODO: These can't be tracked virtually since they can be set by pointer
-        self.THAT = 3010  # TODO: These can't be tracked virtually since they can be set by pointer
         self.eq_num = 0  # Used as an identifier in `eq` operations
         self.gt_num = 0  # Used as an identifier in `gt` operations
         self.lt_num = 0  # Used as an identifier in `lt` operations
