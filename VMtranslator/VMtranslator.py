@@ -89,6 +89,9 @@ class CodeWriter:
 
     See "Figure 7.6 The memory segments seen by every VM function"
     '''
+    # Config constants, should not be called other than INIT
+    INITIAL_THIS = 3000
+    INITIAL_THAT = 3010
 
     def __init__(self, output_filename: str):
         self.output_file = open(output_filename, 'w')
@@ -107,11 +110,11 @@ class CodeWriter:
         # TODO: Initial vals for this and that are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
         # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
         self.output_file.write(f"// init\n")
-        self.output_file.write(f"@3000\n")  # initial THIS value
+        self.output_file.write(f"@{self.INITIAL_THIS}\n")  # initial THIS value
         self.output_file.write(f"D=A\n")
         self.output_file.write(f"@{self.PTR}\n")
         self.output_file.write(f"M=D\n")
-        self.output_file.write(f"@3010\n")  # initial THAT value
+        self.output_file.write(f"@{self.INITIAL_THAT}\n")  # initial THAT value
         self.output_file.write(f"D=A\n")
         self.output_file.write(f"@{self.PTR+1}\n")
         self.output_file.write(f"M=D\n")
