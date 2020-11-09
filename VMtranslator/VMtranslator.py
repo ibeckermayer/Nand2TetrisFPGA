@@ -90,6 +90,7 @@ class CodeWriter:
     See "Figure 7.6 The memory segments seen by every VM function"
     '''
     # Config constants, should not be called other than INIT
+    INITIAL_SP = 256
     INITIAL_THIS = 3000
     INITIAL_THAT = 3010
 
@@ -110,6 +111,11 @@ class CodeWriter:
         # TODO: Initial vals for this and that are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
         # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
         self.output_file.write(f"// init\n")
+        # Initialize SP
+        self.output_file.write(f"@{self.INITIAL_SP}\n")
+        self.output_file.write(f"D=A\n")
+        self.output_file.write(f"@SP\n")
+        self.output_file.write(f"M=D\n")
         self.output_file.write(f"@{self.INITIAL_THIS}\n")  # initial THIS value
         self.output_file.write(f"D=A\n")
         self.output_file.write(f"@{self.PTR}\n")
@@ -119,6 +125,33 @@ class CodeWriter:
         self.output_file.write(f"@{self.PTR+1}\n")
         self.output_file.write(f"M=D\n")
         self.output_file.write(f'\n')
+
+    def SP_pp(self, load_SP_into_A):
+        '''
+        SP++
+        If load_SP_into_A, loads the value of SP into the A register upon completion
+        '''
+        self.output_file.write(f"@SP\n")
+        self.output_file.write(f"M=M+1\n")
+        if load_SP_into_A:
+            self.output_file.write(f"A=M\n")
+
+    def SP_mm(self, load_SP_into_A):
+        '''
+        SP--
+        If load_SP_into_A, loads the value of SP into the A register upon completion
+        '''
+        self.output_file.write(f"@SP\n")
+        self.output_file.write(f"M=M-1\n")
+        if load_SP_into_A:
+            self.output_file.write(f"A=M\n")
+
+    def load_SP_into_A(self):
+        '''
+        Loads the value of SP into the A register
+        '''
+        self.output_file.write(f"@SP\n")
+        self.output_file.write(f"A=M\n")
 
     def write_arithmetic(self, parser: Parser):
         '''
@@ -142,210 +175,194 @@ class CodeWriter:
         if parser.cur_line_split[0] == "add":
             # // add
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=D+M // RAM[*x] = y + x
             # // SP++
             self.output_file.write(f"// add\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=D+M\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[0] == "sub":
             # // sub
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=M-D // RAM[*x] = x - y
             # // SP++
             self.output_file.write(f"// sub\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=M-D\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[0] == "neg":
             # // neg
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # M=-M // Negate y and replace it with it's negated value
             # // Increment stack pointer, now at 258
             self.output_file.write(f"// neg\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=-M\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[0] == "eq":
             # // eq
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # D=M-D // D = x - y, 0 if eq is True
             # @eq0True // Load instruction for true case into the A register
             # D;JEQ // If D == 0, x==y. Jump over the false case to the true
             # // false case: if x != y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=0 // RAM[*x] = 0 (False)
             # @eq0TrueEnd // Load instruction to skip the true case
             # 0;JMP // jump over the true case
             # (eq0True) // true case: elif x == y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=-1 // RAM[*x] = -1 (True)
             # (eq0TrueEnd)
             # // SP++
             self.output_file.write(f"// eq\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M-D\n")
             self.output_file.write(f"@eq{self.eq_num}True\n")
             self.output_file.write(f"D;JEQ\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=0\n")
             self.output_file.write(f"@eq{self.eq_num}TrueEnd\n")
             self.output_file.write(f"0;JMP\n")
             self.output_file.write(f"(eq{self.eq_num}True)\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=-1\n")
             self.output_file.write(f"(eq{self.eq_num}TrueEnd)\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
             self.eq_num += 1
         elif parser.cur_line_split[0] == "gt":
             # // gt
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # D=M-D // D = x - y, positive if gt is True
             # @gt0True // Load instruction for true case into the A register
             # D;JGT // If D == 0, x==y. Jump over the false case to the true
             # // false case: if x != y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=0 // RAM[*x] = 0 (False)
             # @gt0TrueEnd // Load instruction to skip the true case
             # 0;JMP // jump over the true case
             # (gt0True) // true case: elif x == y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=-1 // RAM[*x] = -1 (True)
             # (gt0TrueEnd)
             # // SP++
             self.output_file.write(f"// gt\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M-D\n")
             self.output_file.write(f"@gt{self.gt_num}True\n")
             self.output_file.write(f"D;JGT\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=0\n")
             self.output_file.write(f"@gt{self.gt_num}TrueEnd\n")
             self.output_file.write(f"0;JMP\n")
             self.output_file.write(f"(gt{self.gt_num}True)\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=-1\n")
             self.output_file.write(f"(gt{self.gt_num}TrueEnd)\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
             self.gt_num += 1
         elif parser.cur_line_split[0] == "lt":
             # // lt
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # D=M-D // D = x - y, positive if lt is True
             # @lt0True // Load instruction for true case into the A register
             # D;JLT // If D == 0, x==y. Jump over the false case to the true
             # // false case: if x != y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=0 // RAM[*x] = 0 (False)
             # @lt0TrueEnd // Load instruction to skip the true case
             # 0;JMP // jump over the true case
             # (lt0True) // true case: elif x == y
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=-1 // RAM[*x] = -1 (True)
             # (lt0TrueEnd)
             # // SP++
             self.output_file.write(f"// lt\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M-D\n")
             self.output_file.write(f"@lt{self.lt_num}True\n")
             self.output_file.write(f"D;JLT\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=0\n")
             self.output_file.write(f"@lt{self.lt_num}TrueEnd\n")
             self.output_file.write(f"0;JMP\n")
             self.output_file.write(f"(lt{self.lt_num}True)\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=-1\n")
             self.output_file.write(f"(lt{self.lt_num}TrueEnd)\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
             self.lt_num += 1
         elif parser.cur_line_split[0] == "and":
             # // and
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=D&M // RAM[*x] = x - y
             # // SP++
             self.output_file.write(f"// and\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=D&M\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[0] == "or":
             # // or
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # D=M // D = y
             # // SP--
-            # @SP // A = *x
+            # load_SP_into_A() // A = *x
             # M=D|M // RAM[*x] = x - y
             # // SP++
             self.output_file.write(f"// or\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"D=M\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=D|M\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[0] == "not":
             # // not
             # // SP--
-            # @SP // A = *y
+            # load_SP_into_A() // A = *y
             # M=!M // Negate y and replace it with it's negated value
             # // Increment stack pointer, now at 258
             self.output_file.write(f"// neg\n")
-            self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.SP_mm(load_SP_into_A=True)
             self.output_file.write(f"M=!M\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
 
         self.output_file.write(f'\n')
 
@@ -365,7 +382,7 @@ class CodeWriter:
             '''
             self.output_file.write(f"@{base + offset}\n")
             self.output_file.write(f"D=M\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=D\n")
             self.SP += 1
 
@@ -385,27 +402,18 @@ class CodeWriter:
             # Now grab the value being pointed to
             self.output_file.write(f"D=M\n")
             # And push onto stack
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=D\n")
             self.SP += 1
 
         if parser.cur_line_split[1] == "constant":
-            '''
-            // push constant 2
-            // SP = 256
-            @2 // Load 2 into the A reg
-            D=A // Move 2 to the D reg
-            @256 // Load the stack pointer 256 into the A reg
-            M=D // RAM[256] = 2
-            // Increment the stack pointer, now at 257
-            '''
             val: str = parser.cur_line_split[2]
 
             self.output_file.write(f"@{val}\n")
             self.output_file.write(f"D=A\n")
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"M=D\n")
-            self.SP += 1
+            self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[1] == "local":
             __write_push_vtreg(self.LCL, int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "argument":
@@ -436,7 +444,7 @@ class CodeWriter:
             '''
             # Pop value from the top of the stack into the D reg
             self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"D=M\n")
 
             # Copy D reg into base + offset
@@ -459,7 +467,7 @@ class CodeWriter:
 
             # Pop the top value off the stack and save it in D
             self.SP -= 1
-            self.output_file.write(f"@{self.SP}\n")
+            self.load_SP_into_A()
             self.output_file.write(f"D=M\n")
 
             # Now grab the this or that pointer from R13, and set the memory it points to

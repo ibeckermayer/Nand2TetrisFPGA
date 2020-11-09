@@ -14,6 +14,8 @@ def test_SimpleAdd():
     while True:
         if hack.step().type == CT.END:
             break
+    # Stack pointer should be 257
+    assert hack.ram[0] == 257
     # Should wind up with 15 on the top of the stack
     assert hack.ram[256] == 15
 
@@ -28,6 +30,7 @@ def test_SimpleSub():
         if hack.step().type == CT.END:
             break
 
+    assert hack.ram[0] == 257
     assert hack.ram[256] == -1
 
 
@@ -41,6 +44,7 @@ def test_SimpleNeg():
         if hack.step().type == CT.END:
             break
 
+    assert hack.ram[0] == 257
     assert hack.ram[256] == -8
 
 
@@ -57,6 +61,7 @@ def test_SimpleEq():
         if hack.step().type == CT.END:
             break
 
+    assert hack.ram[0] == 259
     assert hack.ram[256] == 0
     assert hack.ram[257] == -1
     assert hack.ram[258] == 0
@@ -75,6 +80,7 @@ def test_SimpleGt():
         if hack.step().type == CT.END:
             break
 
+    assert hack.ram[0] == 259
     assert hack.ram[256] == 0
     assert hack.ram[257] == 0
     assert hack.ram[258] == -1
@@ -93,6 +99,7 @@ def test_SimpleLt():
         if hack.step().type == CT.END:
             break
 
+    assert hack.ram[0] == 259
     assert hack.ram[256] == -1
     assert hack.ram[257] == 0
     assert hack.ram[258] == 0
@@ -107,7 +114,8 @@ def test_SimpleAnd():
     while True:
         if hack.step().type == CT.END:
             break
-    # Should wind up with 15 on the top of the stack
+
+    assert hack.ram[0] == 257
     assert hack.ram[256] == 2
 
 
@@ -120,7 +128,8 @@ def test_SimpleOr():
     while True:
         if hack.step().type == CT.END:
             break
-    # Should wind up with 15 on the top of the stack
+
+    assert hack.ram[0] == 257
     assert hack.ram[256] == 3
 
 
@@ -133,5 +142,6 @@ def test_SimpleNot():
     while True:
         if hack.step().type == CT.END:
             break
-    # Should wind up with 15 on the top of the stack
+
+    assert hack.ram[0] == 257
     assert hack.ram[256] == -1
