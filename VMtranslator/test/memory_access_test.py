@@ -54,6 +54,6 @@ def test_StaticTest():
             break
 
     assert hack.ram[256] == 1110
-    assert hack.ram[24] == 888
-    assert hack.ram[19] == 333
-    assert hack.ram[17] == 111
+    assert hack.ram[16] == 888
+    assert hack.ram[17] == 333
+    assert hack.ram[18] == 111

@@ -90,41 +90,51 @@ class CodeWriter:
     See "Figure 7.6 The memory segments seen by every VM function"
     '''
     # Config constants, should not be called other than INIT
-    INITIAL_SP = 256
-    INITIAL_THIS = 3000
-    INITIAL_THAT = 3010
+    INITIAL_SP_VAL = 256
+    INITIAL_LCL_VAL = 300
+    INITIAL_ARG_VAL = 400
+    INITIAL_THIS_VAL = 3000
+    INITIAL_THAT_VAL = 3010
+
+    # constant, should never change
+    TEMP = 5
 
     def __init__(self, output_filename: str):
         self.output_file = open(output_filename, 'w')
-        # Initialize the stack pointer to 256 (see page 170 in the pdf of the book for the spec)
-        self.SP = 256
-        # TODO: Initial vals of LCL, ARG are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
-        # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
-        self.LCL = 300  # allocated per VM function
-        self.ARG = 400  # allocated per VM function
-        self.STATIC = 16  # allocated per VM file
-        self.TEMP = 5  # constant, should never change
-        self.PTR = 3  # constant, should never change
+        self.current_parser_filename = ''  # Gets updated per parser, used for naming static variables
         self.eq_num = 0  # Used as an identifier in `eq` operations
         self.gt_num = 0  # Used as an identifier in `gt` operations
         self.lt_num = 0  # Used as an identifier in `lt` operations
         # TODO: Initial vals for this and that are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
         # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
         self.output_file.write(f"// init\n")
-        # Initialize SP
-        self.output_file.write(f"@{self.INITIAL_SP}\n")
-        self.output_file.write(f"D=A\n")
-        self.output_file.write(f"@SP\n")
-        self.output_file.write(f"M=D\n")
-        self.output_file.write(f"@{self.INITIAL_THIS}\n")  # initial THIS value
-        self.output_file.write(f"D=A\n")
-        self.output_file.write(f"@{self.PTR}\n")
-        self.output_file.write(f"M=D\n")
-        self.output_file.write(f"@{self.INITIAL_THAT}\n")  # initial THAT value
-        self.output_file.write(f"D=A\n")
-        self.output_file.write(f"@{self.PTR+1}\n")
-        self.output_file.write(f"M=D\n")
+        self.set_reg("SP", self.INITIAL_SP_VAL)
+        self.set_reg("LCL", self.INITIAL_LCL_VAL)
+        self.set_reg("ARG", self.INITIAL_ARG_VAL)
+        self.set_reg("THIS", self.INITIAL_THIS_VAL)
+        self.set_reg("THAT", self.INITIAL_THAT_VAL)
         self.output_file.write(f'\n')
+
+    def static_symbol(self, offset: int) -> str:
+        '''
+        From section 7.3 of the book:
+        "According to the Hack machine language specification, when a new symbol is encountered for the first time in an assembly 
+        program, the assembler allocates a new RAM address to it, starting at address 16. This convention can be exploited to represent
+        each static variable number j in a VM file f as the assembly language symbol f.j. For example, suppose that the file 
+        Xxx.vm contains the command push static 3. This command can be translated to the Hack assembly commands @Xxx.3 and D=M, followed 
+        by additional assembly code that pushes D’s value to the stack. This implementation of the static segment is somewhat tricky, but it works."
+        '''
+        return self.current_parser_filename.split('/')[-1].split('.')[0] + f".{offset}"
+
+    def set_reg(self, symbol: str, value: int):
+        '''
+        Sets the register symbol to value
+        i.e. if you want to set the stack pointer to 256, call `set_reg("SP", 256)
+        '''
+        self.output_file.write(f"@{value}\n")
+        self.output_file.write(f"D=A\n")
+        self.output_file.write(f"@{symbol}\n")
+        self.output_file.write(f"M=D\n")
 
     def SP_pp(self, load_SP_into_A):
         '''
@@ -145,6 +155,96 @@ class CodeWriter:
         self.output_file.write(f"M=M-1\n")
         if load_SP_into_A:
             self.output_file.write(f"A=M\n")
+
+    def push_value(self, symbol: str, offset: int):
+        '''
+        Pushes the value pointed to by symbol onto the stack, adjusting for offset. 
+        
+        This is the ordinary functioning of the stack machine,
+        i.e. if we encounter `push local 2` we call `self.push_value("LCL", 2)`
+        
+        In this example, we will find the base pointer stored in the LCL register, add 2 to it to create our final pointer, 
+        then push the value pointedto by that pointer onto the stack
+        '''
+        # Build the pointer in the A register
+        self.output_file.write(f"@{symbol}\n")
+        if offset > 0:
+            self.output_file.write(f"D=M\n")
+            self.output_file.write(f"@{offset}\n")
+            self.output_file.write(f"A=D+A\n")
+        else:
+            self.output_file.write(f"A=M\n")
+
+        # Grab the value being pointed to and store it in the D register
+        self.output_file.write(f"D=M\n")
+
+        # Push that onto the stack
+        self.load_SP_into_A()
+        self.output_file.write(f"M=D\n")
+
+        # Increment the stack pointer
+        self.SP_pp(load_SP_into_A=False)
+
+    def push_pointer(self, symbol: str):
+        '''
+        Pushes the pointer referenced by symbol onto the stack. For example, `push pointer 0` should result in a call
+        to self.push_pointer("THIS").
+
+        In this example, we will find the pointer stored in the THIS register and push it onto the stack
+        '''
+        # Grab the pointer referenced by symbol and store it in the D register
+        self.output_file.write(f"@{symbol}\n")
+        self.output_file.write(f"D=M\n")
+
+        # Push it onto the stack
+        self.load_SP_into_A()
+        self.output_file.write(f"M=D\n")
+
+        # Increment the stack pointer
+        self.SP_pp(load_SP_into_A=False)
+
+    def pop_value(self, symbol: str, offset: int):
+        '''
+        Pops the value on the top of the stack into the register stored in symbol, adjusting for offset.
+
+        This is the ordinary functioning of the stack machine, i.e. if we encounter `pop this 2` we can call
+        `this.pop_value("THIS", 2)`
+
+        In this example, this will find the value pointed to by the THIS register, add 2 to it to create our pointer, and then pop the
+        value off the top of the stack and store it in the pointer
+        '''
+        # Load pointer stored at address symbol, add offset, and save it in R13
+        self.output_file.write(f"@{symbol}\n")
+        self.output_file.write(f"D=M\n")
+        if offset > 0:
+            self.output_file.write(f"@{offset}\n")
+            self.output_file.write(f"D=D+A\n")
+        self.output_file.write(f"@R13\n")
+        self.output_file.write(f"M=D\n")
+
+        # Pop the top value off the stack and save it in D
+        self.SP_mm(load_SP_into_A=True)
+        self.output_file.write(f"D=M\n")
+
+        # Now grab the pointer from R13, and set the memory it points to
+        # to the previously-top-of-the-stack value stored in D
+        self.output_file.write(f"@R13\n")
+        self.output_file.write(f"A=M\n")
+        self.output_file.write(f"M=D\n")
+
+    def pop_pointer(self, symbol: str):
+        '''
+        Pops the value on the top of the stack into the symbol register itself.
+
+        For example, if we encounter `pop pointer 0`, we would call `self.pop_pointer("THIS")
+        '''
+        # Load the value at the top of the stack into D
+        self.SP_mm(load_SP_into_A=True)
+        self.output_file.write(f"D=M\n")
+
+        # And move it into the register `symbol`
+        self.output_file.write(f"@{symbol}\n")
+        self.output_file.write(f"M=D\n")
 
     def load_SP_into_A(self):
         '''
@@ -370,42 +470,6 @@ class CodeWriter:
         # Write a comment with the VM code for reference/debugging
         self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
 
-        def __write_push_vtreg(base: int, offset: int):
-            '''
-            vtreg is short for "virtually tracked register"
-
-            To save instruction (ROM) space, the local (LCL), argument (ARG), static (STATIC), temp (TEMP),
-            and pointer (PTR), pointers are all tracked virtually by the CodeWriter.
-
-            This function provides the pattern for pushing the value pointed to by base + offset onto the stack
-            ex: `push static 3` --> __write_push_vtreg(self.STATIC, 3)
-            '''
-            self.output_file.write(f"@{base + offset}\n")
-            self.output_file.write(f"D=M\n")
-            self.load_SP_into_A()
-            self.output_file.write(f"M=D\n")
-            self.SP += 1
-
-        def __write_push_thisthat(thisthat: str, offset: int):
-            '''
-            Writes a push instruction for this or that
-            '''
-            ptr: int = self.PTR if thisthat == 'this' else self.PTR + 1
-            # Load this or that pointer into the CPU and add offset
-            self.output_file.write(f"@{ptr}\n")
-            if offset > 0:
-                self.output_file.write(f"D=M\n")
-                self.output_file.write(f"@{offset}\n")
-                self.output_file.write(f"A=D+A\n")
-            else:
-                self.output_file.write(f"A=M\n")
-            # Now grab the value being pointed to
-            self.output_file.write(f"D=M\n")
-            # And push onto stack
-            self.load_SP_into_A()
-            self.output_file.write(f"M=D\n")
-            self.SP += 1
-
         if parser.cur_line_split[1] == "constant":
             val: str = parser.cur_line_split[2]
 
@@ -415,17 +479,24 @@ class CodeWriter:
             self.output_file.write(f"M=D\n")
             self.SP_pp(load_SP_into_A=False)
         elif parser.cur_line_split[1] == "local":
-            __write_push_vtreg(self.LCL, int(parser.cur_line_split[2]))
+            self.push_value("LCL", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "argument":
-            __write_push_vtreg(self.ARG, int(parser.cur_line_split[2]))
+            self.push_value("ARG", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "static":
-            __write_push_vtreg(self.STATIC, int(parser.cur_line_split[2]))
+            self.push_pointer(self.static_symbol(int(parser.cur_line_split[2])))
         elif parser.cur_line_split[1] == "temp":
-            __write_push_vtreg(self.TEMP, int(parser.cur_line_split[2]))
+            self.push_pointer(f"{self.TEMP + int(parser.cur_line_split[2])}")
         elif parser.cur_line_split[1] == "pointer":
-            __write_push_vtreg(self.PTR, int(parser.cur_line_split[2]))
-        elif parser.cur_line_split[1] == "this" or parser.cur_line_split[1] == "that":
-            __write_push_thisthat(parser.cur_line_split[1], int(parser.cur_line_split[2]))
+            if int(parser.cur_line_split[2]) == 0:
+                self.push_pointer("THIS")
+            elif int(parser.cur_line_split[2]) == 1:
+                self.push_pointer("THAT")
+            else:
+                raise RuntimeError("Invalid command")
+        elif parser.cur_line_split[1] == "this":
+            self.push_value("THIS", int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "that":
+            self.push_value("THAT", int(parser.cur_line_split[2]))
         else:
             raise RuntimeError(f"Unkown push command: {' '.join(parser.cur_line_split[:3])}")
 
@@ -434,60 +505,25 @@ class CodeWriter:
     def write_pop(self, parser: Parser):
         self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
 
-        def __write_pop_vtreg(base: int, offset: int):
-            '''
-            vtreg is short for "virtually tracked register"
-
-            This function provides the pattern for popping the value at the top of the stack off into the
-            register pointed at by base + offset
-            ex: `pop static 3` --> __write_pop_vtreg(self.STATIC, 3)
-            '''
-            # Pop value from the top of the stack into the D reg
-            self.SP -= 1
-            self.load_SP_into_A()
-            self.output_file.write(f"D=M\n")
-
-            # Copy D reg into base + offset
-            self.output_file.write(f"@{base + offset}\n")
-            self.output_file.write(f"M=D\n")
-
-        def __write_pop_thisthat(thisthat: str, offset: int):
-            '''
-            Writes a pop instruction for this or that
-            '''
-            ptr: int = self.PTR if thisthat == 'this' else self.PTR + 1
-            # Load this or that pointer into the CPU and add offset, then save it in R13
-            self.output_file.write(f"@{ptr}\n")
-            self.output_file.write(f"D=M\n")
-            if offset > 0:
-                self.output_file.write(f"@{offset}\n")
-                self.output_file.write(f"D=D+A\n")
-            self.output_file.write(f"@R13\n")
-            self.output_file.write(f"M=D\n")
-
-            # Pop the top value off the stack and save it in D
-            self.SP -= 1
-            self.load_SP_into_A()
-            self.output_file.write(f"D=M\n")
-
-            # Now grab the this or that pointer from R13, and set the memory it points to
-            # to the previously-top-of-the-stack value stored in D
-            self.output_file.write(f"@R13\n")
-            self.output_file.write(f"A=M\n")
-            self.output_file.write(f"M=D\n")
-
         if parser.cur_line_split[1] == "local":
-            __write_pop_vtreg(self.LCL, int(parser.cur_line_split[2]))
+            self.pop_value("LCL", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "argument":
-            __write_pop_vtreg(self.ARG, int(parser.cur_line_split[2]))
+            self.pop_value("ARG", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "static":
-            __write_pop_vtreg(self.STATIC, int(parser.cur_line_split[2]))
+            self.pop_pointer(self.static_symbol(int(parser.cur_line_split[2])))
         elif parser.cur_line_split[1] == "temp":
-            __write_pop_vtreg(self.TEMP, int(parser.cur_line_split[2]))
+            self.pop_pointer(f"{self.TEMP + int(parser.cur_line_split[2])}")
         elif parser.cur_line_split[1] == "pointer":
-            __write_pop_vtreg(self.PTR, int(parser.cur_line_split[2]))
-        elif parser.cur_line_split[1] == "this" or parser.cur_line_split[1] == "that":
-            __write_pop_thisthat(parser.cur_line_split[1], int(parser.cur_line_split[2]))
+            if int(parser.cur_line_split[2]) == 0:
+                self.pop_pointer("THIS")
+            elif int(parser.cur_line_split[2]) == 1:
+                self.pop_pointer("THAT")
+            else:
+                raise RuntimeError("Invalid command")
+        elif parser.cur_line_split[1] == "this":
+            self.pop_value("THIS", int(parser.cur_line_split[2]))
+        elif parser.cur_line_split[1] == "that":
+            self.pop_value("THAT", int(parser.cur_line_split[2]))
         else:
             raise RuntimeError(f"Unkown pop command: {' '.join(parser.cur_line_split[:3])}")
 
@@ -526,9 +562,9 @@ class VMtranslator:
         writes the corresponding assembly code to the output file.
         '''
         for parser in self.parsers:
-            # TODO: is there something we need to do when we change parsers (aka change to a new .vm file)?
+            # Update current_parser_filename so codewriter knows how to name static vars (section 7.3 in the book)
+            self.codewriter.current_parser_filename = parser.filename
             while (parser.advance()):
-                # print(parser.cur_line)
                 # parser parses the input, codewriter translates tokens to assembly, this section
                 # contains the logic for which codewrite function to pass the parser to
                 if parser.command_type == CT.SKIP:
