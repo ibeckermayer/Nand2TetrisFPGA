@@ -8,9 +8,9 @@ class CommandType(Enum):
     ARITHMETIC = 1
     PUSH = 2
     POP = 3
-    # C_LABEL = 4
+    LABEL = 4
     # C_GOTO = 5
-    # C_IF = 6
+    IF_GOTO = 6
     # C_FUNCTION = 7
     # C_RETURN = 8
     # C_CALL = 9
@@ -62,10 +62,14 @@ class Parser:
                     self.cur_line_split[0] == 'and' or self.cur_line_split[0] == 'or' or
                     self.cur_line_split[0] == 'not'):
                 self.command_type = CT.ARITHMETIC
-            elif ('push' == self.cur_line_split[0]):
+            elif (self.cur_line_split[0] == 'push'):
                 self.command_type = CT.PUSH
-            elif ('pop' == self.cur_line_split[0]):
+            elif (self.cur_line_split[0] == 'pop'):
                 self.command_type = CT.POP
+            elif (self.cur_line_split[0] == 'label'):
+                self.command_type = CT.LABEL
+            elif (self.cur_line_split[0] == 'if-goto'):
+                self.command_type = CT.IF_GOTO
 
         # Read the next line and strip leading/trailing spaces
         self.cur_line = self.lines.readline().strip(' ')
@@ -115,7 +119,7 @@ class CodeWriter:
         self.set_reg("THAT", self.INITIAL_THAT_VAL)
         self.output_file.write(f'\n')
 
-    def static_symbol(self, offset: int) -> str:
+    def static_symbol(self, suffix: str) -> str:
         '''
         From section 7.3 of the book:
         "According to the Hack machine language specification, when a new symbol is encountered for the first time in an assembly 
@@ -124,7 +128,7 @@ class CodeWriter:
         Xxx.vm contains the command push static 3. This command can be translated to the Hack assembly commands @Xxx.3 and D=M, followed 
         by additional assembly code that pushes D’s value to the stack. This implementation of the static segment is somewhat tricky, but it works."
         '''
-        return self.current_parser_filename.split('/')[-1].split('.')[0] + f".{offset}"
+        return self.current_parser_filename.split('/')[-1].split('.')[0] + f".{suffix}"
 
     def set_reg(self, symbol: str, value: int):
         '''
@@ -483,7 +487,7 @@ class CodeWriter:
         elif parser.cur_line_split[1] == "argument":
             self.push_value("ARG", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "static":
-            self.push_pointer(self.static_symbol(int(parser.cur_line_split[2])))
+            self.push_pointer(self.static_symbol(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "temp":
             self.push_pointer(f"{self.TEMP + int(parser.cur_line_split[2])}")
         elif parser.cur_line_split[1] == "pointer":
@@ -510,7 +514,7 @@ class CodeWriter:
         elif parser.cur_line_split[1] == "argument":
             self.pop_value("ARG", int(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "static":
-            self.pop_pointer(self.static_symbol(int(parser.cur_line_split[2])))
+            self.pop_pointer(self.static_symbol(parser.cur_line_split[2]))
         elif parser.cur_line_split[1] == "temp":
             self.pop_pointer(f"{self.TEMP + int(parser.cur_line_split[2])}")
         elif parser.cur_line_split[1] == "pointer":
@@ -528,6 +532,27 @@ class CodeWriter:
             raise RuntimeError(f"Unkown pop command: {' '.join(parser.cur_line_split[:3])}")
 
         self.output_file.write(f'\n')
+        pass
+
+    def write_label(self, parser: Parser):
+        self.output_file.write(f"({self.static_symbol(parser.cur_line_split[1])})")
+
+    def write_if_goto(self, parser: Parser):
+        '''
+        This command effects a conditional goto operation. The stack’s topmost value is popped; 
+        if the value is not zero, execution continues from the location marked by the label; otherwise, 
+        execution continues from the next command in the program. 
+        TODO: The jump destination must be located in the same function.
+        '''
+        # Pop the top of the stack into the D register
+        self.SP_mm(load_SP_into_A=True)
+        self.output_file.write(f"D=M\n")
+
+        # Load the label into the A register
+        self.output_file.write(f"@{self.static_symbol(parser.cur_line_split[1])}\n")
+
+        # If popped value is non-zero, jump to label
+        self.output_file.write(f"D;JNE\n")
         pass
 
 
@@ -575,6 +600,10 @@ class VMtranslator:
                     self.codewriter.write_push(parser)
                 elif parser.command_type == CT.POP:
                     self.codewriter.write_pop(parser)
+                elif parser.command_type == CT.LABEL:
+                    self.codewriter.write_label(parser)
+                elif parser.command_type == CT.IF_GOTO:
+                    self.codewriter.write_if_goto(parser)
 
         # Don't forget to close the output file when you're done
         self.codewriter.output_file.close()
