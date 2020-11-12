@@ -80,12 +80,6 @@ class AsmParser:
         self.next_unknown_symbol = 16
         self.instructions: List[Instruction] = []  # Filled out in the second pass
 
-    def build_symbol_table(self):
-        '''
-        First pass of the parser which runs through the full file and builds out the symbol table
-        '''
-        pass
-
     def advance(self) -> str:
         '''
         Advances to the next line of the file and updates the state of the parser.

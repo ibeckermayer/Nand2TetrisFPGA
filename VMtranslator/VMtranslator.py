@@ -9,7 +9,7 @@ class CommandType(Enum):
     PUSH = 2
     POP = 3
     LABEL = 4
-    # C_GOTO = 5
+    GOTO = 5
     IF_GOTO = 6
     # C_FUNCTION = 7
     # C_RETURN = 8
@@ -70,6 +70,8 @@ class Parser:
                 self.command_type = CT.LABEL
             elif (self.cur_line_split[0] == 'if-goto'):
                 self.command_type = CT.IF_GOTO
+            elif (self.cur_line_split[0] == 'goto'):
+                self.command_type = CT.GOTO
 
         # Read the next line and strip leading/trailing spaces
         self.cur_line = self.lines.readline().strip(' ')
@@ -535,7 +537,8 @@ class CodeWriter:
         pass
 
     def write_label(self, parser: Parser):
-        self.output_file.write(f"({self.static_symbol(parser.cur_line_split[1])})")
+        self.output_file.write(f"({self.static_symbol(parser.cur_line_split[1])})\n")
+        self.output_file.write(f"\n")
 
     def write_if_goto(self, parser: Parser):
         '''
@@ -544,6 +547,7 @@ class CodeWriter:
         execution continues from the next command in the program. 
         TODO: The jump destination must be located in the same function.
         '''
+        self.output_file.write(f"// {' '.join(parser.cur_line_split[:2])}\n")
         # Pop the top of the stack into the D register
         self.SP_mm(load_SP_into_A=True)
         self.output_file.write(f"D=M\n")
@@ -553,7 +557,23 @@ class CodeWriter:
 
         # If popped value is non-zero, jump to label
         self.output_file.write(f"D;JNE\n")
-        pass
+
+        self.output_file.write(f"\n")
+
+    def write_goto(self, parser: Parser):
+        '''
+        This command effects an unconditional goto operation, causing execution to continue from the location marked by the label. 
+        TODO: The jump destination must be located in the same function.
+        '''
+        self.output_file.write(f"// {' '.join(parser.cur_line_split[:2])}\n")
+
+        # Load the label into the A register
+        self.output_file.write(f"@{self.static_symbol(parser.cur_line_split[1])}\n")
+
+        # Jump to that label
+        self.output_file.write(f"0;JMP\n")
+
+        self.output_file.write(f"\n")
 
 
 class VMtranslator:
@@ -604,6 +624,8 @@ class VMtranslator:
                     self.codewriter.write_label(parser)
                 elif parser.command_type == CT.IF_GOTO:
                     self.codewriter.write_if_goto(parser)
+                elif parser.command_type == CT.GOTO:
+                    self.codewriter.write_goto(parser)
 
         # Don't forget to close the output file when you're done
         self.codewriter.output_file.close()
