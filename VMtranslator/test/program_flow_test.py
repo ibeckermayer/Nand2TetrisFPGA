@@ -14,6 +14,7 @@ def test_BasicLoop():
     hack = HackExecutor(asmp.run())
 
     # Manual setup for this test
+    hack.ram[int(asmp.symbol_table['LCL'])] = 300
     hack.ram[int(asmp.symbol_table['ARG'])] = 400
     hack.ram[400] = 10
 
@@ -22,7 +23,6 @@ def test_BasicLoop():
         if hack.step().type == CT.END:
             break
 
-    assert hack.ram[0] == 257
     assert hack.ram[256] == 55
 
 

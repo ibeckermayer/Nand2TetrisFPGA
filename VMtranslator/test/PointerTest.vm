@@ -5,6 +5,7 @@
 
 // Executes pop and push commands using the 
 // pointer, this, and that segments.
+function Sys.init 0
 push constant 3030
 pop pointer 0
 push constant 3040
@@ -20,3 +21,5 @@ push this 2
 sub
 push that 6
 add
+label INFLOOP
+goto INFLOOP

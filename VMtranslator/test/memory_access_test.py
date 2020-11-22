@@ -10,6 +10,11 @@ def test_BasicTest():
     VMtranslator('test/BasicTest.vm').run()
     # Load the resulting asm file into the HackExecutor
     hack = HackExecutor(AsmParser('test/BasicTest.asm').run())
+    # Initialize LCL, ARG, THIS, and THAT to testing values
+    hack.ram[1] = 300
+    hack.ram[2] = 400
+    hack.ram[3] = 3000
+    hack.ram[4] = 3010
     # Simulate program to the end
     while True:
         if hack.step().type == CT.END:
@@ -54,6 +59,6 @@ def test_StaticTest():
             break
 
     assert hack.ram[256] == 1110
-    assert hack.ram[16] == 888
-    assert hack.ram[17] == 333
-    assert hack.ram[18] == 111
+    assert hack.ram[17] == 888
+    assert hack.ram[18] == 333
+    assert hack.ram[19] == 111

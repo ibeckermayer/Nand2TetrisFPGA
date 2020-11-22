@@ -103,12 +103,6 @@ class CodeWriter:
 
     See "Figure 7.6 The memory segments seen by every VM function"
     '''
-    # Config constants, should not be called other than INIT
-    INITIAL_SP_VAL = 256
-    INITIAL_LCL_VAL = 300
-    INITIAL_ARG_VAL = 400
-    INITIAL_THIS_VAL = 3000
-    INITIAL_THAT_VAL = 3010
 
     # constant, should never change
     TEMP = 5
@@ -120,15 +114,15 @@ class CodeWriter:
         self.eq_num = 0  # Used as an identifier in `eq` operations
         self.gt_num = 0  # Used as an identifier in `gt` operations
         self.lt_num = 0  # Used as an identifier in `lt` operations
-        # TODO: Initial vals for this and that are inferred from projects/07/MemoryAccess/BasicTest/BasicTest.vm
-        # and projects/07/MemoryAccess/BasicTest/BasicTest.cmp. Probably there are better initial values
+
+        # Initialization assembly code
         self.output_file.write(f"// init\n")
-        self.set_reg("SP", self.INITIAL_SP_VAL)
-        self.set_reg("LCL", self.INITIAL_LCL_VAL)
-        self.set_reg("ARG", self.INITIAL_ARG_VAL)
-        self.set_reg("THIS", self.INITIAL_THIS_VAL)
-        self.set_reg("THAT", self.INITIAL_THAT_VAL)
-        self.output_file.write(f'\n')
+        # Initialize the stack pointer to address 256
+        self.set_reg("SP", 256)
+        # Call Sys.init
+        self.output_file.write(f"@Sys.init\n")
+        self.output_file.write(f"0;JMP\n")
+        self.output_file.write(f"\n")
 
     def static_symbol(self, suffix: str) -> str:
         '''
@@ -158,22 +152,8 @@ class CodeWriter:
         Ensures that the symbol is unique by using the function name and the (letter encoded) line number of the calling function.
         '''
 
-        def int_to_ascii(input: int) -> str:
-            '''
-            Converts any positive integer value to a string, to be used on for the return address.
-            This is necessary due to the Assembler spec: "Constants must be non-negative and are written in decimal notation. 
-            A user-defined symbol can be any sequence of letters, digits, underscore (_), dot (.), dollar sign ($), and colon (:) 
-            that does not begin with a digit."
-            '''
-            ret_val = ''
-            a = input
-            while a != 0:
-                ret_val += chr(97 + (a % 10))
-                a = int(a / 10)
-            return ret_val
-
         # 'ra' short for "return address"
-        return f"ra_{cur_func_name}_{int_to_ascii(cur_line_number)}"
+        return f"ra_{cur_func_name}_{cur_line_number}"
 
     def set_reg(self, symbol: str, value: int):
         '''
@@ -673,7 +653,7 @@ class CodeWriter:
         ```
         See Figure 8.5 on p. 193
         '''
-        self.output_file.write(f"// {' '.join(parser.cur_line_split[:2])}\n")
+        self.output_file.write(f"// {' '.join(parser.cur_line_split[:3])}\n")
 
         f = parser.cur_line_split[1]
         n = parser.cur_line_split[2]
@@ -725,9 +705,10 @@ class CodeWriter:
         self.output_file.write(f"@LCL\n")
         self.output_file.write(f"D=M\n")
         self.output_file.write(f"@5\n")
-        self.output_file.write(f"D=D-A\n")
-        # Save in register 13
-        self.output_file.write(f"@R13\n")
+        self.output_file.write(f"A=D-A\n")
+        self.output_file.write(f"D=M\n")
+        # Save in register 14
+        self.output_file.write(f"@R14\n")
         self.output_file.write(f"M=D\n")
 
         # *ARG = pop()
@@ -755,7 +736,7 @@ class CodeWriter:
             self.output_file.write(f"M=D\n")
 
         # goto RET
-        self.output_file.write(f"@R13\n")
+        self.output_file.write(f"@R14\n")
         self.output_file.write(f"A=M\n")
         self.output_file.write(f"0;JMP\n")
 

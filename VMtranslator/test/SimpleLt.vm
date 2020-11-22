@@ -1,3 +1,4 @@
+function Sys.init 0
 push constant 7
 push constant 8
 lt
@@ -7,3 +8,5 @@ lt
 push constant 8
 push constant 7
 lt
+label INFLOOP
+goto INFLOOP

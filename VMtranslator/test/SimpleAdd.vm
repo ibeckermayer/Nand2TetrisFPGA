@@ -4,6 +4,9 @@
 // File name: projects/07/StackArithmetic/SimpleAdd/SimpleAdd.vm
 
 // Pushes and adds two constants.
+function Sys.init 0
 push constant 7
 push constant 8
 add
+label INFLOOP
+goto INFLOOP

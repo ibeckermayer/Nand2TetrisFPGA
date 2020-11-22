@@ -7,7 +7,7 @@
 // in the memory, starting in the address given in argument[1].
 // Argument[0] and argument[1] are initialized by the test script 
 // before this code starts running.
-
+function Sys.init 0
 push argument 1
 pop pointer 1           // that = argument[1]
 
@@ -47,3 +47,5 @@ pop argument 0          // num_of_elements--
 goto MAIN_LOOP_START
 
 label END_PROGRAM
+label INFLOOP
+goto INFLOOP

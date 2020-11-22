@@ -4,6 +4,7 @@
 // File name: projects/07/MemoryAccess/BasicTest/BasicTest.vm
 
 // Executes pop and push commands using the virtual memory segments.
+function Sys.init 0
 push constant 10
 pop local 0
 push constant 21
@@ -34,3 +35,5 @@ push constant 7
 push constant 8
 pop this 0
 pop that 0
+label INFLOOP
+goto INFLOOP

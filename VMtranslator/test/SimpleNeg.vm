@@ -1,2 +1,5 @@
+function Sys.init 0
 push constant 8
 neg
+label INFLOOP
+goto INFLOOP

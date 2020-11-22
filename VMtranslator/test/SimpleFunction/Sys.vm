@@ -1,0 +1,6 @@
+function Sys.init 0
+push constant 1234
+push constant 37
+call SimpleFunction.test 2
+label INFLOOP
+goto INFLOOP              // loops infinitely

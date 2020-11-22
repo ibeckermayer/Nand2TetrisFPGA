@@ -4,6 +4,7 @@
 // File name: projects/07/MemoryAccess/StaticTest/StaticTest.vm
 
 // Executes pop and push commands using the static segment.
+function Sys.init 0
 push constant 111
 push constant 333
 push constant 888
@@ -15,3 +16,5 @@ push static 1
 sub
 push static 8
 add
+label INFLOOP
+goto INFLOOP

@@ -33,9 +33,14 @@ class Instruction:
     '''
     val for type=A_COMMAND looks like {'val': '45'} for `@45`
     val for type=C_COMMAND looks like {'dest': 'D', 'comp': 'D-A', 'jump': ''} for `D=D-A`
+    val for type=END is just an empty Dict
+    line: the line in the .asm file corresponding to this instruction, useful for debugging
+    line_num: the line number in the .asm file corresponding to this instruction, useful for debugging
     '''
     type: CommandType
     val: Dict[str, str]
+    line: str
+    line_num: int
 
 
 class AsmParser:
@@ -49,6 +54,7 @@ class AsmParser:
         self.filename = filename
         self.file: TextIO = open(self.filename, 'r')
         self.cur_line: str
+        self.asm_code_line_num: int = 0  # The line number in the .asm file
         # The next machine code line number. Gets incremented after each A_COMMAND or C_COMMAND,
         # so that subsequent L_COMMAND's know which line they should be set to
         self.machine_code_line_num: int = 0  # Only increments on executable lines, i.e. only A_COMMAND's and C_COMMAND's; 0 indexed
@@ -88,17 +94,19 @@ class AsmParser:
         '''
         # Read the next line and strip leading/trailing spaces
         self.cur_line = self.file.readline().strip(' ')
+        self.asm_code_line_num += 1
 
         # EOF
         if self.cur_line == '':
             self.line_type = LT.EOF
-            # If this is the first pass, reset file, set first_pass flag to false, and reset machine_code_line_num
+            # If this is the first pass, reset file, set first_pass flag to false, and reset machine_code_line_num and asm_code_line_num
             if self.first_pass:
                 self.file.seek(0)
                 self.first_pass = False
                 self.machine_code_line_num = 0
+                self.asm_code_line_num = 0
             else:
-                self.instructions.append(Instruction(CT.END, {}))
+                self.append_instruction(CT.END, {})
             return self.cur_line
 
         # If this is a full line comment or empty line return a SKIP
@@ -145,11 +153,19 @@ class AsmParser:
 
         return ''
 
+    def append_instruction(self, type: CommandType, val: Dict[str, str]):
+        '''
+        Appends an Instruction to self.instructions
+        '''
+        self.instructions.append(Instruction(type, val, self.cur_line, self.asm_code_line_num))
+
     def append_A_instr(self, cur_line: str):
+        if self.is_infinite_loop_terminator(cur_line):
+            return
         val = cur_line[1:]  # remove '@'
         if val[0].isalpha():
             val = self.symbol_table[val]
-        self.instructions.append(Instruction(CT.A_COMMAND, {'val': val}))
+        self.append_instruction(CT.A_COMMAND, {'val': val})
 
     def append_C_instr(self, cur_line: str):
         dest = ''
@@ -170,12 +186,38 @@ class AsmParser:
             buf = split_buf[0]
         # Only comp is left over
         comp = buf
-        self.instructions.append(
-            Instruction(CT.C_COMMAND, {
-                'dest': dest,
-                'comp': comp,
-                'jump': jump
-            }))
+
+        self.append_instruction(CT.C_COMMAND, {'dest': dest, 'comp': comp, 'jump': jump})
+
+    def is_infinite_loop_terminator(self, cur_line: str):
+        '''
+        NOTE: Major hack incoming
+
+        A Sys.init VM function will typically setup and then call some other function, and then terminate with an infinite loop:
+        {code[vm]
+            function Sys.init 0
+            push constant 4
+            call Main.fibonacci 1   // computes the 4'th fibonacci element
+            label INFLOOP
+            goto INFLOOP            // loops infinitely
+        }
+        
+        The assembly for the final two lines (the infinite loop) will wind up looking like the following
+        {code[asm]
+            (Sys.init$INFLOOP)
+            @Sys.init$INFLOOP
+            0;JMP
+        }
+
+        This makes sense for ordinary Hack usage, but for the purposes of our testing simulator (HackExecutor), we want the program to
+        terminate or else the tests themselves will run in an infinite loop and never complete. To avoid this, we will designate the
+        label `Sys.init$INFLOOP` a special keyword in our testing setup, and use it to indicate that we've reached the infinte loop
+        and so should terminate the program (denoted by a CT.END instruction)
+        '''
+        if cur_line == "@Sys.init$INFLOOP":
+            self.append_instruction(CT.END, {})
+            return True
+        return False
 
     def run(self) -> List[Instruction]:
         '''
