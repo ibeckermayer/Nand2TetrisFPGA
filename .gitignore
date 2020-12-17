@@ -11,3 +11,4 @@ __pycache__
 **.dSYM**
 *.hack
 Nand2TetrisVivado/*
+venv/*
