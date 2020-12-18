@@ -1,5 +1,5 @@
 from typing import TextIO
-from enum import Enum
+from enum import Enum, auto
 
 
 class TokenType(Enum):
@@ -14,27 +14,31 @@ TT = TokenType
 
 
 class KeyWord(Enum):
-    CLASS = 0
-    METHOD = 1
-    FUNCTION = 2
-    CONSTRUCTOR = 3
-    INT = 4
-    BOOLEAN = 5
-    CHAR = 6
-    VOID = 7
-    VAR = 8
-    STATIC = 9
-    FIELD = 10
-    LET = 11
-    DO = 12
-    IF = 13
-    ELSE = 14
-    WHILE = 15
-    RETURN = 16
-    TRUE = 17
-    FALSE = 18
-    NULL = 19
-    THIS = 20
+
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()
+
+    CLASS = auto()
+    METHOD = auto()
+    FUNCTION = auto()
+    CONSTRUCTOR = auto()
+    INT = auto()
+    BOOLEAN = auto()
+    CHAR = auto()
+    VOID = auto()
+    VAR = auto()
+    STATIC = auto()
+    FIELD = auto()
+    LET = auto()
+    DO = auto()
+    IF = auto()
+    ELSE = auto()
+    WHILE = auto()
+    RETURN = auto()
+    TRUE = auto()
+    FALSE = auto()
+    NULL = auto()
+    THIS = auto()
 
 
 KW = KeyWord
@@ -144,11 +148,7 @@ class JackTokenizer:
                 # Eat the rest of the characters in this identifier or keyword
                 self._i += 1
 
-            if self._stream[j:self._i] in [
-                    'class', 'constructor', 'function', 'method', 'field', 'static', 'var', 'int',
-                    'char', 'boolean', 'void', 'true', 'false', 'null', 'this', 'let', 'do', 'if',
-                    'else', 'while', 'return'
-            ]:
+            if self._stream[j:self._i] in [kw.value for kw in list(KeyWord)]:
                 # If this is a keyword
                 self.token_type = TT.KEYWORD
                 self._key_word = KeyWord(self._stream[j:self._i])
