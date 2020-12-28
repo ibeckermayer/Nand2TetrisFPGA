@@ -1,6 +1,7 @@
 package jacktokenizer
 
 import (
+	"encoding/xml"
 	"fmt"
 	"io/ioutil"
 	"strconv"
@@ -18,6 +19,7 @@ type JackTokenizer interface {
 	StringVal() string
 	KeyWord() string
 	Identifier() string
+	MarshalXML(e *xml.Encoder, start xml.StartElement) error // Used for testing
 }
 
 type jackTokenizer struct {
@@ -244,4 +246,36 @@ func (jt *jackTokenizer) Identifier() string {
 	}
 	return jt.identifier
 
+}
+
+// https://golang.org/pkg/encoding/xml/#Marshaler
+func (jt *jackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+	var err error
+	var elemName string
+	var charData string
+
+	switch jt.TokenType() {
+	case "SYMBOL":
+		elemName = "symbol"
+		charData = fmt.Sprintf(" %v ", jt.Symbol())
+	case "INT_CONST":
+		elemName = "integerConstant"
+		charData = fmt.Sprintf(" %v ", jt.IntVal())
+	case "STRING_CONST":
+		elemName = "stringConstant"
+		charData = fmt.Sprintf(" %v ", jt.StringVal())
+	case "KEYWORD":
+		elemName = "keyword"
+		charData = fmt.Sprintf(" %v ", jt.KeyWord())
+	case "IDENTIFIER":
+		elemName = "identifier"
+		charData = fmt.Sprintf(" %v ", jt.Identifier())
+	}
+
+	err = e.EncodeToken(
+		xml.StartElement{Name: xml.Name{Space: "", Local: elemName}, Attr: []xml.Attr{}})
+	err = e.EncodeToken(xml.CharData(charData))
+	err = e.EncodeToken(xml.EndElement{Name: xml.Name{Space: "", Local: elemName}})
+
+	return err
 }
