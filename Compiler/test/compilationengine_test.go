@@ -11,12 +11,12 @@ func runCeTest(jackFilePath string, t *testing.T) {
 
 	ce, err := compiler.NewCompilationEngine(jackFilePath)
 	if err != nil {
-		fatalize(err, t)
+		t.Fatal(err)
 	}
 
 	err = ce.CompileClass()
 	if err != nil {
-		fatalize(err, t)
+		t.Fatal(err)
 	}
 }
 

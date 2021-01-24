@@ -29,7 +29,7 @@ type InvalidAccessError struct {
 }
 
 func (e *InvalidAccessError) Error() string {
-	return fmt.Sprintf("expected a token of type `%v` but a token \"%v\" of type `%v`", e.wasAttempted, e.wasValidVal, e.wasValid)
+	return fmt.Sprintf("expected a token of type `%v` but found a token \"%v\" of type `%v` instead", e.wasAttempted, e.wasValidVal, e.wasValid)
 }
 
 func (jt *JackTokenizer) getValidVal() string {

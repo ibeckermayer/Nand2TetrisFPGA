@@ -12,27 +12,22 @@ import (
 	"github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/compiler"
 )
 
-func fatalize(err error, t *testing.T) {
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
 func runTokenizerTest(jackFilePath string, t *testing.T) {
 	correctFilePath := fmt.Sprintf("%vT.xml", jackFilePath[0:len(jackFilePath)-len(".jack")])
 	tmpFilePath := fmt.Sprintf("%v_out.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
 
 	// Create jt
 	jt, err := compiler.NewJackTokenizer(jackFilePath)
-	fatalize(err, t)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	// Create tmp file to write to
 	f, err := os.Create(tmpFilePath)
-	fatalize(err, t)
-	defer func() {
-		f.Close()
-		os.Remove(tmpFilePath)
-	}()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer f.Close()
 
 	// Pass tmp file to xml encoder
 	enc := xml.NewEncoder(f)
@@ -45,7 +40,9 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 	// Walk through file and encode jt state as XML
 	for err := jt.Advance(); err == nil && jt.HasMoreTokens(); err = jt.Advance() {
 		if err != nil {
-			fatalize(err, t)
+			if err != nil {
+				t.Fatal(err)
+			}
 		}
 		jt.MarshalXML(enc,
 			xml.StartElement{Name: xml.Name{Space: "not used", Local: "not used"}, Attr: []xml.Attr{}})
@@ -58,9 +55,13 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 
 	// Check that the xml file we just wrote is what we expect it to be
 	b1, err := ioutil.ReadFile(tmpFilePath)
-	fatalize(err, t)
+	if err != nil {
+		t.Fatal(err)
+	}
 	b2, err := ioutil.ReadFile(correctFilePath)
-	fatalize(err, t)
+	if err != nil {
+		t.Fatal(err)
+	}
 
 	if !(bytes.Equal(b1, b2)) {
 		t.Fatal("Files weren't equal!")
