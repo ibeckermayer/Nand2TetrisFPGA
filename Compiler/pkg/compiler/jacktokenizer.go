@@ -10,11 +10,56 @@ import (
 	"unicode"
 )
 
+type tokenType string
+
+const (
+	symbol     = tokenType("SYMBOL")
+	intConst   = tokenType("INT_CONST")
+	strConst   = tokenType("STRING_CONST")
+	keyWord    = tokenType("KEYWORD")
+	identifier = tokenType("IDENTIFIER")
+)
+
+// Signifies the caller attempted to access on type of lexical element when the tokenizer was at another
+type invalidAccessError struct {
+	wasAttempted tokenType // Type the caller attempted to access
+	wasValid     tokenType // Type the tokenizer was able to access
+	wasValidVal  string    // The value of the valid token
+}
+
+func (e *invalidAccessError) Error() string {
+	return fmt.Sprintf("attempted to access a token of type \"%v\" but the tokenizer was at a token of type \"%v\"", e.wasAttempted, e.wasValid)
+}
+
+func (jt *jackTokenizer) getValidVal() string {
+	switch jt.tokenType {
+	case symbol:
+		return jt.symbol
+	case intConst:
+		return strconv.Itoa(jt.intVal)
+	case strConst:
+		return jt.stringVal
+	case keyWord:
+		return jt.keyWord
+	case identifier:
+		return jt.identifier
+	}
+	return ""
+}
+
+func (jt *jackTokenizer) newInvalidAccessError(wasAttempted tokenType) *invalidAccessError {
+	return &invalidAccessError{
+		wasAttempted: wasAttempted,
+		wasValid:     jt.tokenType,
+		wasValidVal:  jt.getValidVal(),
+	}
+}
+
 // JackTokenizer is public interface for incrementing and reading the state of the tokenizer state machine
 type JackTokenizer interface {
 	Advance() error
 	HasMoreTokens() bool
-	TokenType() string
+	TokenType() tokenType
 	Symbol() (string, error)
 	IntVal() (int, error)
 	StringVal() (string, error)
@@ -28,7 +73,7 @@ type jackTokenizer struct {
 	stream     string // The entire file as a string
 	streamlen  int
 	i          int // Index of the character in the stream that is currently being analyzed
-	tokenType  string
+	tokenType  tokenType
 	symbol     string // Becomes accessible when tokenType == "SYMBOL"
 	intVal     int    // Becomes accessible when tokenType == "INT_CONST"
 	stringVal  string // Becomes accessible when tokenType == "STRING_CONST"
@@ -126,12 +171,12 @@ func (jt *jackTokenizer) Advance() error {
 	// Comments and whitespace have been skipped, now determine what type of lexical element we're analyzing
 	if strings.Contains("{}()[].,;+-*/&|<>=~", string(jt.curChar())) {
 		// If we're at a single-character symbol
-		jt.tokenType = "SYMBOL"
+		jt.tokenType = symbol
 		jt.symbol = string(jt.curChar())
 		jt.i++ // Eat the symbol
 	} else if unicode.IsDigit(rune(jt.curChar())) {
 		// If we're at an integer constant
-		jt.tokenType = "INT_CONST"
+		jt.tokenType = intConst
 		j := jt.i // Save our current index
 		jt.i++    // Eat the current char
 
@@ -150,7 +195,7 @@ func (jt *jackTokenizer) Advance() error {
 		jt.intVal = val
 	} else if jt.curChar() == '"' {
 		// If we're at a string constant
-		jt.tokenType = "STRING_CONST"
+		jt.tokenType = strConst
 		jt.i++    // Eat the '"'
 		j := jt.i // Save our current index
 		for jt.HasMoreTokens() && jt.curChar() != '"' {
@@ -183,11 +228,11 @@ func (jt *jackTokenizer) Advance() error {
 
 		if isKeyWord(jt.stream[j:jt.i]) {
 			// If this is a keyword
-			jt.tokenType = "KEYWORD"
+			jt.tokenType = keyWord
 			jt.keyWord = jt.stream[j:jt.i]
 		} else {
 			// Else this is an identifier
-			jt.tokenType = "IDENTIFIER"
+			jt.tokenType = identifier
 			jt.identifier = jt.stream[j:jt.i]
 		}
 	}
@@ -208,44 +253,44 @@ func (jt *jackTokenizer) HasMoreTokens() bool {
 	return jt.i < jt.streamlen
 }
 
-func (jt *jackTokenizer) TokenType() string {
+func (jt *jackTokenizer) TokenType() tokenType {
 	return jt.tokenType
 }
 
 func (jt *jackTokenizer) Symbol() (string, error) {
-	if jt.tokenType != "SYMBOL" {
-		return "", fmt.Errorf("Attempted to access jt.symbol but jt.tokenType was not \"SYMBOL\" (it was \"%v\")", jt.tokenType)
+	if jt.tokenType != symbol {
+		return "", jt.newInvalidAccessError(symbol)
 	}
 	return jt.symbol, nil
 }
 
 func (jt *jackTokenizer) IntVal() (int, error) {
-	if jt.tokenType != "INT_CONST" {
-		return 0, fmt.Errorf("Attempted to access jt.intVal but jt.tokenType was not \"INT_CONST\" (it was \"%v\")", jt.tokenType)
+	if jt.tokenType != intConst {
+		return -1, jt.newInvalidAccessError(intConst)
 	}
 	return jt.intVal, nil
 
 }
 
 func (jt *jackTokenizer) StringVal() (string, error) {
-	if jt.tokenType != "STRING_CONST" {
-		return "", fmt.Errorf("Attempted to access jt.stringVal but jt.tokenType was not \"STRING_CONST\" (it was \"%v\")", jt.tokenType)
+	if jt.tokenType != strConst {
+		return "", jt.newInvalidAccessError(strConst)
 	}
 	return jt.stringVal, nil
 
 }
 
 func (jt *jackTokenizer) KeyWord() (string, error) {
-	if jt.tokenType != "KEYWORD" {
-		return "", fmt.Errorf("Attempted to access jt.keyWord but jt.tokenType was not \"KEYWORD\" (it was \"%v\")", jt.tokenType)
+	if jt.tokenType != keyWord {
+		return "", jt.newInvalidAccessError(keyWord)
 	}
 	return jt.keyWord, nil
 
 }
 
 func (jt *jackTokenizer) Identifier() (string, error) {
-	if jt.tokenType != "IDENTIFIER" {
-		return "", fmt.Errorf("Attempted to access jt.identifier but jt.tokenType was not \"IDENTIFIER\" (it was \"%v\")", jt.tokenType)
+	if jt.tokenType != identifier {
+		return "", jt.newInvalidAccessError(identifier)
 	}
 	return jt.identifier, nil
 
@@ -259,32 +304,32 @@ func (jt *jackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 	var charData string
 
 	switch jt.TokenType() {
-	case "SYMBOL":
+	case symbol:
 		elemName = "symbol"
 		data, err = jt.Symbol()
 		if err != nil {
 			return err
 		}
-	case "INT_CONST":
+	case intConst:
 		elemName = "integerConstant"
 		intData, err := jt.IntVal()
 		if err != nil {
 			return err
 		}
 		data = strconv.Itoa(intData)
-	case "STRING_CONST":
+	case strConst:
 		elemName = "stringConstant"
 		data, err = jt.StringVal()
 		if err != nil {
 			return err
 		}
-	case "KEYWORD":
+	case keyWord:
 		elemName = "keyword"
 		data, err = jt.KeyWord()
 		if err != nil {
 			return err
 		}
-	case "IDENTIFIER":
+	case identifier:
 		elemName = "identifier"
 		data, err = jt.Identifier()
 		if err != nil {

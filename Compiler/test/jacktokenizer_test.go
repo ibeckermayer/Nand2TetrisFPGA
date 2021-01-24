@@ -31,7 +31,7 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 	fatalize(err, t)
 	defer func() {
 		f.Close()
-		// os.Remove(tmpFilePath)
+		os.Remove(tmpFilePath)
 	}()
 
 	// Pass tmp file to xml encoder
