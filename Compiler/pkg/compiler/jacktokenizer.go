@@ -21,15 +21,15 @@ const (
 	identifier = TokenType("IDENTIFIER")
 )
 
-// Signifies the caller attempted to access on type of lexical element when the tokenizer was at another
-type invalidAccessError struct {
+// InvalidAccessError is returned when the caller attempted to access on type of lexical element when the tokenizer was at another
+type InvalidAccessError struct {
 	wasAttempted TokenType // Type the caller attempted to access
 	wasValid     TokenType // Type the tokenizer was able to access
 	wasValidVal  string    // The value of the valid token
 }
 
-func (e *invalidAccessError) Error() string {
-	return fmt.Sprintf("attempted to access a token of type \"%v\" but the tokenizer was at a token of type \"%v\"", e.wasAttempted, e.wasValid)
+func (e *InvalidAccessError) Error() string {
+	return fmt.Sprintf("expected a token of type `%v` but a token \"%v\" of type `%v`", e.wasAttempted, e.wasValidVal, e.wasValid)
 }
 
 func (jt *JackTokenizer) getValidVal() string {
@@ -48,8 +48,8 @@ func (jt *JackTokenizer) getValidVal() string {
 	return ""
 }
 
-func (jt *JackTokenizer) newInvalidAccessError(wasAttempted TokenType) *invalidAccessError {
-	return &invalidAccessError{
+func (jt *JackTokenizer) newInvalidAccessError(wasAttempted TokenType) *InvalidAccessError {
+	return &InvalidAccessError{
 		wasAttempted: wasAttempted,
 		wasValid:     jt.tokenType,
 		wasValidVal:  jt.getValidVal(),
