@@ -1,4 +1,4 @@
-package jacktokenizer
+package compiler
 
 import (
 	"encoding/xml"
@@ -23,7 +23,7 @@ type JackTokenizer interface {
 }
 
 type jackTokenizer struct {
-	filename   string
+	filename   string // The input file name
 	stream     string // The entire file as a string
 	streamlen  int
 	i          int // Index of the character in the stream that is currently being analyzed

@@ -9,7 +9,7 @@ import (
 
 	"os"
 
-	jtz "github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/jacktokenizer"
+	jtz "github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/compiler"
 )
 
 func fatalize(err error, t *testing.T) {
@@ -18,10 +18,9 @@ func fatalize(err error, t *testing.T) {
 	}
 }
 
-//"./ArrayTest/Main.jack"
 func runTokenizerTest(jackFilePath string, t *testing.T) {
 	correctFilePath := fmt.Sprintf("%vT.xml", jackFilePath[0:len(jackFilePath)-len(".jack")])
-	tmpFilePath := fmt.Sprintf("%v_out.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
+	tmpFilePath := fmt.Sprintf("%v_outT.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
 
 	// Create jt
 	jt, err := jtz.NewJackTokenizer(jackFilePath)
