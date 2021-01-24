@@ -9,7 +9,7 @@ import (
 
 	"os"
 
-	jtz "github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/compiler"
+	"github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/compiler"
 )
 
 func fatalize(err error, t *testing.T) {
@@ -23,7 +23,7 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 	tmpFilePath := fmt.Sprintf("%v_out.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
 
 	// Create jt
-	jt, err := jtz.NewJackTokenizer(jackFilePath)
+	jt, err := compiler.NewJackTokenizer(jackFilePath)
 	fatalize(err, t)
 
 	// Create tmp file to write to
@@ -67,30 +67,30 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 	}
 }
 
-func TestArrayTestMain(t *testing.T) {
+func TestTokenizerArrayTestMain(t *testing.T) {
 	runTokenizerTest("./ArrayTest/Main.jack", t)
 }
 
-func TestExpressionLessSquareMain(t *testing.T) {
+func TestTokenizerExpressionLessSquareMain(t *testing.T) {
 	runTokenizerTest("./ExpressionLessSquare/Main.jack", t)
 }
 
-func TestExpressionLessSquareSquare(t *testing.T) {
+func TestTokenizerExpressionLessSquareSquare(t *testing.T) {
 	runTokenizerTest("./ExpressionLessSquare/Square.jack", t)
 }
 
-func TestExpressionLessSquareSquareGame(t *testing.T) {
+func TestTokenizerExpressionLessSquareSquareGame(t *testing.T) {
 	runTokenizerTest("./ExpressionLessSquare/SquareGame.jack", t)
 }
 
-func TestSquareMain(t *testing.T) {
+func TestTokenizerSquareMain(t *testing.T) {
 	runTokenizerTest("./Square/Main.jack", t)
 }
 
-func TestSquareSquare(t *testing.T) {
+func TestTokenizerSquareSquare(t *testing.T) {
 	runTokenizerTest("./Square/Square.jack", t)
 }
 
-func TestSquareSquareGame(t *testing.T) {
+func TestTokenizerSquareSquareGame(t *testing.T) {
 	runTokenizerTest("./Square/SquareGame.jack", t)
 }
