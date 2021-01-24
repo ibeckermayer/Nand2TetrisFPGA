@@ -10,20 +10,21 @@ import (
 	"unicode"
 )
 
-type tokenType string
+// TokenType is a string representing a type of lexical element that a token might be
+type TokenType string
 
 const (
-	symbol     = tokenType("SYMBOL")
-	intConst   = tokenType("INT_CONST")
-	strConst   = tokenType("STRING_CONST")
-	keyWord    = tokenType("KEYWORD")
-	identifier = tokenType("IDENTIFIER")
+	symbol     = TokenType("SYMBOL")
+	intConst   = TokenType("INT_CONST")
+	strConst   = TokenType("STRING_CONST")
+	keyWord    = TokenType("KEYWORD")
+	identifier = TokenType("IDENTIFIER")
 )
 
 // Signifies the caller attempted to access on type of lexical element when the tokenizer was at another
 type invalidAccessError struct {
-	wasAttempted tokenType // Type the caller attempted to access
-	wasValid     tokenType // Type the tokenizer was able to access
+	wasAttempted TokenType // Type the caller attempted to access
+	wasValid     TokenType // Type the tokenizer was able to access
 	wasValidVal  string    // The value of the valid token
 }
 
@@ -31,7 +32,7 @@ func (e *invalidAccessError) Error() string {
 	return fmt.Sprintf("attempted to access a token of type \"%v\" but the tokenizer was at a token of type \"%v\"", e.wasAttempted, e.wasValid)
 }
 
-func (jt *jackTokenizer) getValidVal() string {
+func (jt *JackTokenizer) getValidVal() string {
 	switch jt.tokenType {
 	case symbol:
 		return jt.symbol
@@ -47,7 +48,7 @@ func (jt *jackTokenizer) getValidVal() string {
 	return ""
 }
 
-func (jt *jackTokenizer) newInvalidAccessError(wasAttempted tokenType) *invalidAccessError {
+func (jt *JackTokenizer) newInvalidAccessError(wasAttempted TokenType) *invalidAccessError {
 	return &invalidAccessError{
 		wasAttempted: wasAttempted,
 		wasValid:     jt.tokenType,
@@ -55,25 +56,13 @@ func (jt *jackTokenizer) newInvalidAccessError(wasAttempted tokenType) *invalidA
 	}
 }
 
-// JackTokenizer is public interface for incrementing and reading the state of the tokenizer state machine
-type JackTokenizer interface {
-	Advance() error
-	HasMoreTokens() bool
-	TokenType() tokenType
-	Symbol() (string, error)
-	IntVal() (int, error)
-	StringVal() (string, error)
-	KeyWord() (string, error)
-	Identifier() (string, error)
-	MarshalXML(e *xml.Encoder, start xml.StartElement) error // Used for testing
-}
-
-type jackTokenizer struct {
+// JackTokenizer is walks through a Jack program, setting its own internal state to reflect the lexical state of the program
+type JackTokenizer struct {
 	filename   string // The input file name
 	stream     string // The entire file as a string
 	streamlen  int
 	i          int // Index of the character in the stream that is currently being analyzed
-	tokenType  tokenType
+	tokenType  TokenType
 	symbol     string // Becomes accessible when tokenType == "SYMBOL"
 	intVal     int    // Becomes accessible when tokenType == "INT_CONST"
 	stringVal  string // Becomes accessible when tokenType == "STRING_CONST"
@@ -82,11 +71,11 @@ type jackTokenizer struct {
 }
 
 // NewJackTokenizer creates a tokenizer
-func NewJackTokenizer(filename string) (JackTokenizer, error) {
+func NewJackTokenizer(filename string) (*JackTokenizer, error) {
 	data, err := ioutil.ReadFile(filename)
 	text := string(data)
 
-	return &jackTokenizer{
+	return &JackTokenizer{
 		filename:  filename,
 		stream:    text,
 		streamlen: len(text),
@@ -124,10 +113,10 @@ func isKeyWord(potentialKeyWord string) bool {
 	return false
 }
 
-// Each [non-recursive] call to jt.Advance() eats the next token in the jt.stream and and updates jt's
+// Advance -- each [non-recursive] call to jt.Advance() eats the next token in the jt.stream and and updates jt's
 // internal state to reflect the token it just ate: It updates tokenType and sets whichever
 // of jt.intVal, jt.stringVal, jt.keyWord, or jt.identifier corresponds.
-func (jt *jackTokenizer) Advance() error {
+func (jt *JackTokenizer) Advance() error {
 	// Needed to halt execution in case we reach EOF on a recursive call. Otherwise, callers should be
 	// checking that jt.HasMoreTokens() before calling jt.Advance()
 	if !(jt.i < jt.streamlen) {
@@ -242,29 +231,33 @@ func (jt *jackTokenizer) Advance() error {
 
 // curChar returns the current character being analyzed by the jt if no arguments are given.
 // Can optionally be called with an offset argument to look ahead, i.e. jt.curChar(1) == jt.stream[jt.i + 1]
-func (jt *jackTokenizer) curChar(offset ...int) byte {
+func (jt *JackTokenizer) curChar(offset ...int) byte {
 	if len(offset) == 0 {
 		return jt.stream[jt.i]
 	}
 	return jt.stream[jt.i+offset[0]]
 }
 
-func (jt *jackTokenizer) HasMoreTokens() bool {
+// HasMoreTokens returns true if the tokenizer has more tokens to scan
+func (jt *JackTokenizer) HasMoreTokens() bool {
 	return jt.i < jt.streamlen
 }
 
-func (jt *jackTokenizer) TokenType() tokenType {
+// TokenType returns the TokenType of the current token
+func (jt *JackTokenizer) TokenType() TokenType {
 	return jt.tokenType
 }
 
-func (jt *jackTokenizer) Symbol() (string, error) {
+// Symbol returns the raw token if TokenType is symbol
+func (jt *JackTokenizer) Symbol() (string, error) {
 	if jt.tokenType != symbol {
 		return "", jt.newInvalidAccessError(symbol)
 	}
 	return jt.symbol, nil
 }
 
-func (jt *jackTokenizer) IntVal() (int, error) {
+// IntVal returns the raw token if TokenType is intConst
+func (jt *JackTokenizer) IntVal() (int, error) {
 	if jt.tokenType != intConst {
 		return -1, jt.newInvalidAccessError(intConst)
 	}
@@ -272,7 +265,8 @@ func (jt *jackTokenizer) IntVal() (int, error) {
 
 }
 
-func (jt *jackTokenizer) StringVal() (string, error) {
+// StringVal returns the raw token if TokenType is strConst
+func (jt *JackTokenizer) StringVal() (string, error) {
 	if jt.tokenType != strConst {
 		return "", jt.newInvalidAccessError(strConst)
 	}
@@ -280,7 +274,8 @@ func (jt *jackTokenizer) StringVal() (string, error) {
 
 }
 
-func (jt *jackTokenizer) KeyWord() (string, error) {
+// KeyWord returns the raw token if TokenType is keyWord
+func (jt *JackTokenizer) KeyWord() (string, error) {
 	if jt.tokenType != keyWord {
 		return "", jt.newInvalidAccessError(keyWord)
 	}
@@ -288,7 +283,8 @@ func (jt *jackTokenizer) KeyWord() (string, error) {
 
 }
 
-func (jt *jackTokenizer) Identifier() (string, error) {
+// Identifier returns the raw token if TokenType is identifier
+func (jt *JackTokenizer) Identifier() (string, error) {
 	if jt.tokenType != identifier {
 		return "", jt.newInvalidAccessError(identifier)
 	}
@@ -296,8 +292,8 @@ func (jt *jackTokenizer) Identifier() (string, error) {
 
 }
 
-// https://golang.org/pkg/encoding/xml/#Marshaler
-func (jt *jackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
+// MarshalXML makes JackTokenizer a Marshaler (see https://golang.org/pkg/encoding/xml/#Marshaler)
+func (jt *JackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 	var err error
 	var elemName string
 	var data string
