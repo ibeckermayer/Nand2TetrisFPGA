@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strconv"
@@ -11,14 +12,14 @@ import (
 
 // JackTokenizer is public interface for incrementing and reading the state of the tokenizer state machine
 type JackTokenizer interface {
-	Advance()
+	Advance() error
 	HasMoreTokens() bool
 	TokenType() string
-	Symbol() string
-	IntVal() int
-	StringVal() string
-	KeyWord() string
-	Identifier() string
+	Symbol() (string, error)
+	IntVal() (int, error)
+	StringVal() (string, error)
+	KeyWord() (string, error)
+	Identifier() (string, error)
 	MarshalXML(e *xml.Encoder, start xml.StartElement) error // Used for testing
 }
 
@@ -81,18 +82,18 @@ func isKeyWord(potentialKeyWord string) bool {
 // Each [non-recursive] call to jt.Advance() eats the next token in the jt.stream and and updates jt's
 // internal state to reflect the token it just ate: It updates tokenType and sets whichever
 // of jt.intVal, jt.stringVal, jt.keyWord, or jt.identifier corresponds.
-func (jt *jackTokenizer) Advance() {
+func (jt *jackTokenizer) Advance() error {
 	// Needed to halt execution in case we reach EOF on a recursive call. Otherwise, callers should be
 	// checking that jt.HasMoreTokens() before calling jt.Advance()
 	if !(jt.i < jt.streamlen) {
-		return
+		return nil
 	}
 
 	// Skip all whitespace characters
 	if unicode.IsSpace(rune(jt.curChar())) {
 		jt.i++
 		jt.Advance()
-		return
+		return nil
 	}
 
 	// Skip line comments
@@ -104,7 +105,7 @@ func (jt *jackTokenizer) Advance() {
 		}
 		jt.i++ // Eat the '\n'
 		jt.Advance()
-		return
+		return nil
 	}
 
 	// Skip block comments
@@ -115,11 +116,11 @@ func (jt *jackTokenizer) Advance() {
 		}
 		if !(jt.curChar() == '*' && jt.curChar(1) == '/') {
 			// Hit EOF before block comment closed
-			panic("Encountered block comment open characters '/*' but didn't find subsequent block comment close characters '*/'")
+			return errors.New("Encountered block comment open characters '/*' but didn't find subsequent block comment close characters '*/'")
 		}
 		jt.i = jt.i + 2 // Eat the closing "*/"
 		jt.Advance()
-		return
+		return nil
 	}
 
 	// Comments and whitespace have been skipped, now determine what type of lexical element we're analyzing
@@ -141,10 +142,10 @@ func (jt *jackTokenizer) Advance() {
 		// Attempt to convert the captured constant to an integer
 		val, err := strconv.Atoi(jt.stream[j:jt.i])
 		if err != nil {
-			panic(fmt.Sprintf("Compiler bug: attempted to parse %v as an integer", jt.stream[j:jt.i]))
+			return fmt.Errorf("Compiler bug: attempted to parse %v as an integer", jt.stream[j:jt.i])
 		}
 		if val > 32767 {
-			panic(fmt.Sprintf("Integer constants must be a decimal number in the range of 0 .. 32767. Got %v", val))
+			return fmt.Errorf("Integer constants must be a decimal number in the range of 0 .. 32767. Got %v", val)
 		}
 		jt.intVal = val
 	} else if jt.curChar() == '"' {
@@ -155,24 +156,24 @@ func (jt *jackTokenizer) Advance() {
 		for jt.HasMoreTokens() && jt.curChar() != '"' {
 			// Eat the rest of the string constant
 			if jt.curChar() == '\n' {
-				panic("String constants cannot contain newline characters")
+				return errors.New("String constants cannot contain newline characters")
 			}
 			jt.i++
 		}
 		if !jt.HasMoreTokens() {
-			panic("Hit EOF before string constant terminated")
+			return errors.New("Hit EOF before string constant terminated")
 		}
 		if jt.i == j {
 			// TODO: Maybe we should support empty strings?
-			panic("Encountered unsupported empty string constant")
+			return errors.New("Encountered unsupported empty string constant")
 		}
 		jt.stringVal = jt.stream[j:jt.i]
 		jt.i++ // Eat the closing '"'
 	} else {
 		// We're at either an identifier or a keyword or an invalid character
 		if !(unicode.IsLetter(rune(jt.curChar())) || jt.curChar() == '_') {
-			// If we hit an invalid first character for an indentifier or keyword, panic
-			panic(fmt.Sprintf("Encountered invalid character: %v", jt.curChar()))
+			// If we hit an invalid first character for an indentifier or keyword, return error
+			return fmt.Errorf("Encountered invalid character: %v", jt.curChar())
 		}
 		j := jt.i // Save current index
 		for jt.HasMoreTokens() && (unicode.IsLetter(rune(jt.curChar())) || unicode.IsDigit(rune(jt.curChar())) || jt.curChar() == '_') {
@@ -190,6 +191,8 @@ func (jt *jackTokenizer) Advance() {
 			jt.identifier = jt.stream[j:jt.i]
 		}
 	}
+
+	return nil
 }
 
 // curChar returns the current character being analyzed by the jt if no arguments are given.
@@ -209,42 +212,42 @@ func (jt *jackTokenizer) TokenType() string {
 	return jt.tokenType
 }
 
-func (jt *jackTokenizer) Symbol() string {
+func (jt *jackTokenizer) Symbol() (string, error) {
 	if jt.tokenType != "SYMBOL" {
-		panic(fmt.Sprintf("Attempted to access jt.symbol but jt.tokenType was not \"SYMBOL\" (it was \"%v\")", jt.tokenType))
+		return "", fmt.Errorf("Attempted to access jt.symbol but jt.tokenType was not \"SYMBOL\" (it was \"%v\")", jt.tokenType)
 	}
-	return jt.symbol
+	return jt.symbol, nil
 }
 
-func (jt *jackTokenizer) IntVal() int {
+func (jt *jackTokenizer) IntVal() (int, error) {
 	if jt.tokenType != "INT_CONST" {
-		panic(fmt.Sprintf("Attempted to access jt.intVal but jt.tokenType was not \"INT_CONST\" (it was \"%v\")", jt.tokenType))
+		return 0, fmt.Errorf("Attempted to access jt.intVal but jt.tokenType was not \"INT_CONST\" (it was \"%v\")", jt.tokenType)
 	}
-	return jt.intVal
+	return jt.intVal, nil
 
 }
 
-func (jt *jackTokenizer) StringVal() string {
+func (jt *jackTokenizer) StringVal() (string, error) {
 	if jt.tokenType != "STRING_CONST" {
-		panic(fmt.Sprintf("Attempted to access jt.stringVal but jt.tokenType was not \"STRING_CONST\" (it was \"%v\")", jt.tokenType))
+		return "", fmt.Errorf("Attempted to access jt.stringVal but jt.tokenType was not \"STRING_CONST\" (it was \"%v\")", jt.tokenType)
 	}
-	return jt.stringVal
+	return jt.stringVal, nil
 
 }
 
-func (jt *jackTokenizer) KeyWord() string {
+func (jt *jackTokenizer) KeyWord() (string, error) {
 	if jt.tokenType != "KEYWORD" {
-		panic(fmt.Sprintf("Attempted to access jt.keyWord but jt.tokenType was not \"KEYWORD\" (it was \"%v\")", jt.tokenType))
+		return "", fmt.Errorf("Attempted to access jt.keyWord but jt.tokenType was not \"KEYWORD\" (it was \"%v\")", jt.tokenType)
 	}
-	return jt.keyWord
+	return jt.keyWord, nil
 
 }
 
-func (jt *jackTokenizer) Identifier() string {
+func (jt *jackTokenizer) Identifier() (string, error) {
 	if jt.tokenType != "IDENTIFIER" {
-		panic(fmt.Sprintf("Attempted to access jt.identifier but jt.tokenType was not \"IDENTIFIER\" (it was \"%v\")", jt.tokenType))
+		return "", fmt.Errorf("Attempted to access jt.identifier but jt.tokenType was not \"IDENTIFIER\" (it was \"%v\")", jt.tokenType)
 	}
-	return jt.identifier
+	return jt.identifier, nil
 
 }
 
@@ -252,25 +255,44 @@ func (jt *jackTokenizer) Identifier() string {
 func (jt *jackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 	var err error
 	var elemName string
+	var data string
 	var charData string
 
 	switch jt.TokenType() {
 	case "SYMBOL":
 		elemName = "symbol"
-		charData = fmt.Sprintf(" %v ", jt.Symbol())
+		data, err = jt.Symbol()
+		if err != nil {
+			return err
+		}
 	case "INT_CONST":
 		elemName = "integerConstant"
-		charData = fmt.Sprintf(" %v ", jt.IntVal())
+		intData, err := jt.IntVal()
+		if err != nil {
+			return err
+		}
+		data = strconv.Itoa(intData)
 	case "STRING_CONST":
 		elemName = "stringConstant"
-		charData = fmt.Sprintf(" %v ", jt.StringVal())
+		data, err = jt.StringVal()
+		if err != nil {
+			return err
+		}
 	case "KEYWORD":
 		elemName = "keyword"
-		charData = fmt.Sprintf(" %v ", jt.KeyWord())
+		data, err = jt.KeyWord()
+		if err != nil {
+			return err
+		}
 	case "IDENTIFIER":
 		elemName = "identifier"
-		charData = fmt.Sprintf(" %v ", jt.Identifier())
+		data, err = jt.Identifier()
+		if err != nil {
+			return err
+		}
 	}
+
+	charData = fmt.Sprintf(" %v ", data)
 
 	err = e.EncodeToken(
 		xml.StartElement{Name: xml.Name{Space: "", Local: elemName}, Attr: []xml.Attr{}})

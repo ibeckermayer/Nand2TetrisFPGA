@@ -20,7 +20,7 @@ func fatalize(err error, t *testing.T) {
 
 func runTokenizerTest(jackFilePath string, t *testing.T) {
 	correctFilePath := fmt.Sprintf("%vT.xml", jackFilePath[0:len(jackFilePath)-len(".jack")])
-	tmpFilePath := fmt.Sprintf("%v_outT.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
+	tmpFilePath := fmt.Sprintf("%v_out.xml", correctFilePath[0:len(correctFilePath)-len(".xml")])
 
 	// Create jt
 	jt, err := jtz.NewJackTokenizer(jackFilePath)
@@ -31,7 +31,7 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 	fatalize(err, t)
 	defer func() {
 		f.Close()
-		os.Remove(tmpFilePath)
+		// os.Remove(tmpFilePath)
 	}()
 
 	// Pass tmp file to xml encoder
@@ -43,7 +43,10 @@ func runTokenizerTest(jackFilePath string, t *testing.T) {
 		xml.StartElement{Name: xml.Name{Space: "", Local: "tokens"}, Attr: []xml.Attr{}})
 
 	// Walk through file and encode jt state as XML
-	for jt.Advance(); jt.HasMoreTokens(); jt.Advance() {
+	for err := jt.Advance(); err == nil && jt.HasMoreTokens(); err = jt.Advance() {
+		if err != nil {
+			fatalize(err, t)
+		}
 		jt.MarshalXML(enc,
 			xml.StartElement{Name: xml.Name{Space: "not used", Local: "not used"}, Attr: []xml.Attr{}})
 	}
