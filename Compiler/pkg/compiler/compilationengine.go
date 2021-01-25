@@ -41,7 +41,9 @@ func (ce *CompilationEngine) Run() error {
 	defer ce.xmlEnc.Flush()
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
-	ce.jt.Advance()
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 	return ce.compileClass()
 }
 
@@ -74,7 +76,7 @@ func (ce *CompilationEngine) compileClass() error {
 	// Check that first token is "class"
 	if kw, err := ce.jt.KeyWord(); kw != "class" {
 		if err != nil {
-			return err
+			return SyntaxError(err)
 		}
 		return SyntaxError(fmt.Errorf("expected keyword \"class\""))
 	}
@@ -82,7 +84,9 @@ func (ce *CompilationEngine) compileClass() error {
 	// Found class, write keyword
 	ce.marshaljt() // <keyword> class </keyword>
 
-	ce.jt.Advance()
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 
 	// Check that next token is an identifier
 	if _, err := ce.jt.Identifier(); err != nil {
@@ -91,28 +95,28 @@ func (ce *CompilationEngine) compileClass() error {
 
 	ce.marshaljt() // <identifier> ClassName </identifier>
 
-	ce.jt.Advance()
-
-	// Check that next token is "{"
-	if sym, err := ce.jt.Symbol(); sym != "{" {
-		if err != nil {
-			return err
-		}
-		return SyntaxError(fmt.Errorf("expected the symbol \"{\""))
-	}
-
-	ce.marshaljt() // <symbol> { </symbol>
-
-	// Loop through and compile all of the classVarDecs
 	if err := ce.jt.Advance(); err != nil {
 		return err
 	}
+
+	// Check that next token is "{"
+	if err := ce.compileSymbol("{"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
+
+	// Loop through and compile all of the classVarDecs
 	for kw, err := ce.jt.KeyWord(); kw == "static" || kw == "field"; kw, err = ce.jt.KeyWord() {
 		if err != nil {
-			return err
+			return SyntaxError(err)
 		}
 
-		ce.compileClassVarDec()
+		if err := ce.compileClassVarDec(); err != nil {
+			return SyntaxError(err)
+		}
 
 		if err := ce.jt.Advance(); err != nil {
 			return err
@@ -123,10 +127,12 @@ func (ce *CompilationEngine) compileClass() error {
 	// The previous loop will have called Advance() and then hit a non static/field
 	for kw, err := ce.jt.KeyWord(); kw == "constructor" || kw == "function" || kw == "method"; kw, err = ce.jt.KeyWord() {
 		if err != nil {
-			return err
+			return SyntaxError(err)
 		}
 
-		ce.compileSubroutine()
+		if err := ce.compileSubroutine(); err != nil {
+			return SyntaxError(err)
+		}
 
 		if err := ce.jt.Advance(); err != nil {
 			return err
@@ -136,14 +142,9 @@ func (ce *CompilationEngine) compileClass() error {
 
 	// Check that next token is "}"
 	// The previous loop should have called Advance() for this symbol
-	if sym, err := ce.jt.Symbol(); sym != "}" {
-		if err != nil {
-			return err
-		}
-		return SyntaxError(fmt.Errorf("expected the symbol \"}\" but got \"%v\" instead", sym))
+	if err := ce.compileSymbol("}"); err != nil {
+		return SyntaxError(err)
 	}
-
-	ce.marshaljt() // <symbol> } </symbol>
 
 	return nil
 }
@@ -156,7 +157,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	// Confirm that first token is "static" or "field"
 	if kw, err := ce.jt.KeyWord(); !(kw == "static" || kw == "field") {
 		if err != nil {
-			return err
+			return SyntaxError(err)
 		}
 		return SyntaxError(fmt.Errorf("expected %v \"static\" or \"field\"", keyWord))
 	}
@@ -164,7 +165,9 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	// found "static" or "field"
 	ce.marshaljt() // <keyword> * </keyword>
 
-	ce.jt.Advance()
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 
 	// Check for a type: 'int' | 'char' | 'boolean' | className
 	switch ce.jt.TokenType() {
@@ -182,51 +185,126 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	}
 
 	// Check for varName
-	ce.jt.Advance()
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 	_, err := ce.jt.Identifier()
 	if err != nil {
-		return err
+		return SyntaxError(err)
 	}
 	ce.marshaljt() // <identifier> varName </identifier>
 
 	// Check for a comma separated list of more varNames
-	ce.jt.Advance()
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 	for sym, err := ce.jt.Symbol(); sym == ","; sym, err = ce.jt.Symbol() {
 		if err != nil {
-			return err
+			return SyntaxError(err)
 		}
 		ce.marshaljt() // <keyword> , </keyword>
 
 		// Check for varName
-		ce.jt.Advance()
-		_, err := ce.jt.Identifier()
-		if err != nil {
+		if err := ce.jt.Advance(); err != nil {
 			return err
 		}
+		_, err := ce.jt.Identifier()
+		if err != nil {
+			return SyntaxError(err)
+		}
 		ce.marshaljt() // <identifier> varName </identifier>
-		ce.jt.Advance()
+		if err := ce.jt.Advance(); err != nil {
+			return err
+		}
 	}
 
 	// Should wind up at a ";"
-	if sym, err := ce.jt.Symbol(); sym != ";" {
-		if err != nil {
-			return err
-		}
-		return SyntaxError(fmt.Errorf("expected the %v \";\"", symbol))
+	if err = ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
 	}
-
-	ce.marshaljt() // <symbol> ; </symbol>
 
 	return nil
 }
 
-func (ce *CompilationEngine) compileSubroutine() {
-	// panic("not implemented") // TODO: Implement
-	return
+// ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
+func (ce *CompilationEngine) compileSubroutine() error {
+	ce.openXMLTag("subroutineDec")        // <subroutineDec>
+	defer ce.closeXMLTag("subroutineDec") //</subroutineDec>
+
+	// Confirm that first token is "constructor" or "function" or "method"
+	if kw, err := ce.jt.KeyWord(); !(kw == "constructor" || kw == "function" || kw == "method") {
+		if err != nil {
+			return SyntaxError(err)
+		}
+		return SyntaxError(fmt.Errorf("expected %v \"constructor\" or \"function\" or \"method\"", keyWord))
+	}
+
+	// found "constructor" or "function" or "method"
+	ce.marshaljt() // <keyword> * </keyword>
+
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
+
+	// Check for a ('void' | type) = ('void' | 'int' | 'char' | 'boolean' | className)
+	switch ce.jt.TokenType() {
+	case keyWord:
+		kw, _ := ce.jt.KeyWord()
+		if !(kw == "void" || kw == "int" || kw == "char" || kw == "boolean") {
+			return SyntaxError(fmt.Errorf("expected %v void or a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, keyWord, identifier))
+		}
+		ce.marshaljt() // <keyword> * </keyword>
+	case identifier:
+		ce.marshaljt() // <identifier> className </identifier>
+	default:
+		return SyntaxError(fmt.Errorf("expected %v void or a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, keyWord, identifier))
+	}
+
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
+
+	// check for subroutineName
+	_, err := ce.jt.Identifier()
+	if err != nil {
+		return SyntaxError(err)
+	}
+
+	ce.marshaljt() // <identifier> subroutineName </identifier>
+
+	if err := ce.jt.Advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileSymbol("("); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileParameterList(); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
 }
 
-func (ce *CompilationEngine) compileParameterList() {
-	panic("not implemented") // TODO: Implement
+func (ce *CompilationEngine) compileSymbol(sym string) error {
+	if s, err := ce.jt.Symbol(); s != sym {
+		if err != nil {
+			return SyntaxError(err)
+		}
+		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", symbol, sym))
+	}
+
+	ce.marshaljt() // <symbol> sym </symbol>
+	return nil
+}
+
+func (ce *CompilationEngine) compileParameterList() error {
+	ce.openXMLTag("parameterList")        // <parameterList>
+	defer ce.closeXMLTag("parameterList") // </parameterList>
+
+	return nil
+	// TODO: Implement the rest
 }
 
 func (ce *CompilationEngine) compileVarDec() {
