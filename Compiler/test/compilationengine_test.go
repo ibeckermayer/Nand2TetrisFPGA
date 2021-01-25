@@ -7,14 +7,9 @@ import (
 )
 
 func runCeTest(jackFilePath string, t *testing.T) {
-	// correctFilePath := fmt.Sprintf("%v.xml", jackFilePath[0:len(jackFilePath)-len(".jack")])
+	ce := &compiler.CompilationEngine{JackFilePath: jackFilePath}
 
-	ce, err := compiler.NewCompilationEngine(jackFilePath)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	err = ce.CompileClass()
+	err := ce.Run()
 	if err != nil {
 		t.Fatal(err)
 	}

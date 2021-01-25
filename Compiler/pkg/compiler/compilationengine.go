@@ -12,30 +12,37 @@ type SyntaxError error
 // CompilationEngine effects the actual compilation output.
 // Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
 type CompilationEngine struct {
-	jt     *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
-	out    *os.File       // The output file
-	xmlEnc *xml.Encoder   // The xml encoder for testing
+	JackFilePath string         // The name of the .jack input file to be compiled.
+	jt           *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
+	outputFile   *os.File       // The output file
+	xmlEnc       *xml.Encoder   // The xml encoder for testing
 }
 
-// NewCompilationEngine creates a new CompilationEngine.
-func NewCompilationEngine(filename string) (*CompilationEngine, error) {
-	jt, err := NewJackTokenizer(filename)
+// Run runs the compiler on ce.JackFilePath
+func (ce *CompilationEngine) Run() error {
+	// Initialize the ce's corresponding JackTokenizer
+	jt, err := NewJackTokenizer(ce.JackFilePath)
 	if err != nil {
-		return nil, err
+		return err
 	}
+	ce.jt = jt
 
-	xmlOutputFile, err := os.Create(fmt.Sprintf("%v_out.xml", filename[0:len(filename)-len(".jack")]))
+	// Create the output file
+	outputFile, err := os.Create(fmt.Sprintf("%v_out.xml", ce.JackFilePath[0:len(ce.JackFilePath)-len(".jack")]))
 	if err != nil {
-		return nil, err
+		return err
 	}
-	xmlEnc := xml.NewEncoder(xmlOutputFile)
-	xmlEnc.Indent("", "  ")
+	ce.outputFile = outputFile
+	defer ce.outputFile.Close()
 
-	return &CompilationEngine{
-		jt:     jt,
-		out:    xmlOutputFile,
-		xmlEnc: xmlEnc,
-	}, nil
+	// Create xml encoder
+	ce.xmlEnc = xml.NewEncoder(outputFile)
+	ce.xmlEnc.Indent("", "  ")
+	defer ce.xmlEnc.Flush()
+
+	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
+	ce.jt.Advance()
+	return ce.compileClass()
 }
 
 // Shorthand for opening an xml tag
@@ -58,21 +65,22 @@ func (ce *CompilationEngine) marshaljt() error {
 	return ce.jt.MarshalXML(ce.xmlEnc, xml.StartElement{Name: xml.Name{Space: "not used", Local: "not used"}, Attr: []xml.Attr{}})
 }
 
-// CompileClass should be called immediately after the compilationEngine is created.
+// Assumes the first token has already been consumed (should be 'class').
 // 'class' className '{' classVarDec* subroutineDec* '}'
-func (ce *CompilationEngine) CompileClass() error {
-	defer ce.out.Close()
-	defer ce.xmlEnc.Flush()
-	// Advance and check that first token is "class"
-	ce.jt.Advance()
-	if kw, err := ce.jt.KeyWord(); err != nil || kw != "class" {
+func (ce *CompilationEngine) compileClass() error {
+	ce.openXMLTag("class")        // <class>
+	defer ce.closeXMLTag("class") // defer closing </class>
+
+	// Check that first token is "class"
+	if kw, err := ce.jt.KeyWord(); kw != "class" {
+		if err != nil {
+			return err
+		}
 		return SyntaxError(fmt.Errorf("expected keyword \"class\""))
 	}
 
-	// Found class, open tag
-	ce.openXMLTag("class")        // <class>
-	defer ce.closeXMLTag("class") // defer closing </class>
-	ce.marshaljt()                // <keyword> class </keyword>
+	// Found class, write keyword
+	ce.marshaljt() // <keyword> class </keyword>
 
 	ce.jt.Advance()
 
@@ -90,7 +98,7 @@ func (ce *CompilationEngine) CompileClass() error {
 		if err != nil {
 			return err
 		}
-		return SyntaxError(fmt.Errorf("expected the symbol \"{\" but got \"%v\" instead", sym))
+		return SyntaxError(fmt.Errorf("expected the symbol \"{\""))
 	}
 
 	ce.marshaljt() // <symbol> { </symbol>
@@ -104,7 +112,7 @@ func (ce *CompilationEngine) CompileClass() error {
 			return err
 		}
 
-		ce.CompileClassVarDec()
+		ce.compileClassVarDec()
 
 		if err := ce.jt.Advance(); err != nil {
 			return err
@@ -118,7 +126,7 @@ func (ce *CompilationEngine) CompileClass() error {
 			return err
 		}
 
-		ce.CompileSubroutine()
+		ce.compileSubroutine()
 
 		if err := ce.jt.Advance(); err != nil {
 			return err
@@ -140,57 +148,123 @@ func (ce *CompilationEngine) CompileClass() error {
 	return nil
 }
 
-// TODO: You should start from here!!!
-func (ce *CompilationEngine) CompileClassVarDec() {
+// ('static' | 'field') type varName (',' varName)* ';'
+func (ce *CompilationEngine) compileClassVarDec() error {
+	ce.openXMLTag("classVarDec")        // <classVarDec>
+	defer ce.closeXMLTag("classVarDec") //</classVarDec>
+
+	// Confirm that first token is "static" or "field"
+	if kw, err := ce.jt.KeyWord(); !(kw == "static" || kw == "field") {
+		if err != nil {
+			return err
+		}
+		return SyntaxError(fmt.Errorf("expected %v \"static\" or \"field\"", keyWord))
+	}
+
+	// found "static" or "field"
+	ce.marshaljt() // <keyword> * </keyword>
+
+	ce.jt.Advance()
+
+	// Check for a type: 'int' | 'char' | 'boolean' | className
+	switch ce.jt.TokenType() {
+	case keyWord:
+		kw, _ := ce.jt.KeyWord()
+		if !(kw == "int" || kw == "char" || kw == "boolean") {
+			return SyntaxError(fmt.Errorf("expected a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, identifier))
+		}
+		// Found "int" or "char" or "boolean"
+		ce.marshaljt() // <keyword> * </keyword>
+	case identifier:
+		ce.marshaljt() // <identifier> className </identifier>
+	default:
+		return SyntaxError(fmt.Errorf("expected a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, identifier))
+	}
+
+	// Check for varName
+	ce.jt.Advance()
+	_, err := ce.jt.Identifier()
+	if err != nil {
+		return err
+	}
+	ce.marshaljt() // <identifier> varName </identifier>
+
+	// Check for a comma separated list of more varNames
+	ce.jt.Advance()
+	for sym, err := ce.jt.Symbol(); sym == ","; sym, err = ce.jt.Symbol() {
+		if err != nil {
+			return err
+		}
+		ce.marshaljt() // <keyword> , </keyword>
+
+		// Check for varName
+		ce.jt.Advance()
+		_, err := ce.jt.Identifier()
+		if err != nil {
+			return err
+		}
+		ce.marshaljt() // <identifier> varName </identifier>
+		ce.jt.Advance()
+	}
+
+	// Should wind up at a ";"
+	if sym, err := ce.jt.Symbol(); sym != ";" {
+		if err != nil {
+			return err
+		}
+		return SyntaxError(fmt.Errorf("expected the %v \";\"", symbol))
+	}
+
+	ce.marshaljt() // <symbol> ; </symbol>
+
+	return nil
+}
+
+func (ce *CompilationEngine) compileSubroutine() {
 	// panic("not implemented") // TODO: Implement
 	return
 }
 
-func (ce *CompilationEngine) CompileSubroutine() {
-	// panic("not implemented") // TODO: Implement
-	return
-}
-
-func (ce *CompilationEngine) CompileParameterList() {
+func (ce *CompilationEngine) compileParameterList() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileVarDec() {
+func (ce *CompilationEngine) compileVarDec() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileStatements() {
+func (ce *CompilationEngine) compileStatements() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileDo() {
+func (ce *CompilationEngine) compileDo() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileLet() {
+func (ce *CompilationEngine) compileLet() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileWhile() {
+func (ce *CompilationEngine) compileWhile() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) DompileReturn() {
+func (ce *CompilationEngine) compileReturn() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileIf() {
+func (ce *CompilationEngine) compileIf() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileExpression() {
+func (ce *CompilationEngine) compileExpression() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileTerm() {
+func (ce *CompilationEngine) compileTerm() {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) CompileExpressionList() {
+func (ce *CompilationEngine) compileExpressionList() {
 	panic("not implemented") // TODO: Implement
 }
