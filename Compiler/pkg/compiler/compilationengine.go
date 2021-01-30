@@ -149,6 +149,41 @@ func (ce *CompilationEngine) compileClass() error {
 	return nil
 }
 
+// 'void | 'int' | 'char' | 'boolean' | className
+func (ce *CompilationEngine) compileVoidOrType() error {
+	if kw, err := ce.jt.KeyWord(); kw == "void" && err == nil {
+		ce.marshaljt() // <keyword> void </keyword>
+		return nil
+	}
+	err := ce.compileType()
+	if err != nil {
+		// see errString in compileType()
+		return SyntaxError(fmt.Errorf("%v or \"void\"", err.Error()))
+	}
+	return err
+}
+
+// 'int' | 'char' | 'boolean' | className
+func (ce *CompilationEngine) compileType() error {
+	var errString string = "expected a type: %v className or %v \"int\" or \"char\" or \"boolean\""
+
+	switch ce.jt.TokenType() {
+	case keyWord:
+		kw, _ := ce.jt.KeyWord()
+		if !(kw == "int" || kw == "char" || kw == "boolean") {
+			return SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+		}
+		// Found "int" or "char" or "boolean"
+		ce.marshaljt() // <keyword> * </keyword>
+		return nil
+	case identifier:
+		ce.marshaljt() // <identifier> className </identifier>
+		return nil
+	default:
+		return SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+	}
+}
+
 // ('static' | 'field') type varName (',' varName)* ';'
 func (ce *CompilationEngine) compileClassVarDec() error {
 	ce.openXMLTag("classVarDec")        // <classVarDec>
@@ -169,19 +204,9 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 		return err
 	}
 
-	// Check for a type: 'int' | 'char' | 'boolean' | className
-	switch ce.jt.TokenType() {
-	case keyWord:
-		kw, _ := ce.jt.KeyWord()
-		if !(kw == "int" || kw == "char" || kw == "boolean") {
-			return SyntaxError(fmt.Errorf("expected a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, identifier))
-		}
-		// Found "int" or "char" or "boolean"
-		ce.marshaljt() // <keyword> * </keyword>
-	case identifier:
-		ce.marshaljt() // <identifier> className </identifier>
-	default:
-		return SyntaxError(fmt.Errorf("expected a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, identifier))
+	// try to compile a type
+	if err := ce.compileType(); err != nil {
+		return err
 	}
 
 	// Check for varName
@@ -246,18 +271,9 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return err
 	}
 
-	// Check for a ('void' | type) = ('void' | 'int' | 'char' | 'boolean' | className)
-	switch ce.jt.TokenType() {
-	case keyWord:
-		kw, _ := ce.jt.KeyWord()
-		if !(kw == "void" || kw == "int" || kw == "char" || kw == "boolean") {
-			return SyntaxError(fmt.Errorf("expected %v void or a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, keyWord, identifier))
-		}
-		ce.marshaljt() // <keyword> * </keyword>
-	case identifier:
-		ce.marshaljt() // <identifier> className </identifier>
-	default:
-		return SyntaxError(fmt.Errorf("expected %v void or a type (%v \"int\" or \"char\" or \"boolean\" or %v className)", keyWord, keyWord, identifier))
+	// Compile a ('void' | type)
+	if err := ce.compileVoidOrType(); err != nil {
+		return err
 	}
 
 	if err := ce.jt.Advance(); err != nil {
