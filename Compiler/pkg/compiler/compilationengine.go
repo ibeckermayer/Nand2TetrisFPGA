@@ -256,7 +256,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	ce.openXMLTag("subroutineDec")        // <subroutineDec>
 	defer ce.closeXMLTag("subroutineDec") //</subroutineDec>
 
-	// Confirm that first token is "constructor" or "function" or "method"
+	// Confirm that current token is "constructor" or "function" or "method"
 	if kw, err := ce.jt.KeyWord(); !(kw == "constructor" || kw == "function" || kw == "method") {
 		if err != nil {
 			return SyntaxError(err)
@@ -288,11 +288,8 @@ func (ce *CompilationEngine) compileSubroutine() error {
 
 	ce.marshaljt() // <identifier> subroutineName </identifier>
 
+	// Eat the subroutineName
 	if err := ce.jt.Advance(); err != nil {
-		return SyntaxError(err)
-	}
-
-	if err := ce.compileSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -315,12 +312,63 @@ func (ce *CompilationEngine) compileSymbol(sym string) error {
 	return nil
 }
 
+// '(' ((type varName)(',' type varName)*)? ')'
 func (ce *CompilationEngine) compileParameterList() error {
-	ce.openXMLTag("parameterList")        // <parameterList>
-	defer ce.closeXMLTag("parameterList") // </parameterList>
+	if err := ce.compileSymbol("("); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
+
+	ce.openXMLTag("parameterList") // <parameterList>
+
+	// While we have yet to hit the closing ")"
+	for sym, _ := ce.jt.Symbol(); sym != ")"; sym, _ = ce.jt.Symbol() {
+		// First token should be a type
+		err := ce.compileType()
+		if err != nil {
+			return err
+		}
+
+		// Eat the type token
+		if err := ce.jt.Advance(); err != nil {
+			return err
+		}
+
+		// Next should be a varName
+		if ce.jt.TokenType() != identifier {
+			return SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
+		}
+		ce.marshaljt() // <identifier> varName </identifier>
+
+		// Eat the varName token
+		if err := ce.jt.Advance(); err != nil {
+			return err
+		}
+
+		// Now we should be at either a "," or the closing ")"
+		sym, err := ce.jt.Symbol()
+		if err != nil || !(sym == "," || sym == ")") {
+			return SyntaxError(fmt.Errorf("Expected either a \",\" or a \")\""))
+		}
+		if sym == "," {
+			ce.compileSymbol(sym)
+			if err := ce.jt.Advance(); err != nil {
+				return err
+			}
+		}
+		// Else we were at a ")", let the loop break
+	}
+
+	ce.closeXMLTag("parameterList") // </parameterList>
+	// Now we should be at the closing ")"
+	ce.compileSymbol(")")
+	if err := ce.jt.Advance(); err != nil {
+		return err
+	}
 
 	return nil
-	// TODO: Implement the rest
 }
 
 func (ce *CompilationEngine) compileVarDec() {
