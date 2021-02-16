@@ -2,6 +2,7 @@ package compiler
 
 import (
 	"encoding/xml"
+	"errors"
 	"fmt"
 	"os"
 )
@@ -41,7 +42,7 @@ func (ce *CompilationEngine) Run() error {
 	defer ce.xmlEnc.Flush()
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 	return ce.compileClass()
@@ -67,6 +68,14 @@ func (ce *CompilationEngine) marshaljt() error {
 	return ce.jt.MarshalXML(ce.xmlEnc, xml.StartElement{Name: xml.Name{Space: "not used", Local: "not used"}, Attr: []xml.Attr{}})
 }
 
+// advance throws an error if there are no more tokens, else it returns ce.jt.Advance()
+func (ce *CompilationEngine) advance() error {
+	if !ce.jt.HasMoreTokens() {
+		return errors.New("ran out of tokens")
+	}
+	return ce.jt.Advance()
+}
+
 // Assumes the first token has already been consumed (should be 'class').
 // 'class' className '{' classVarDec* subroutineDec* '}'
 func (ce *CompilationEngine) compileClass() error {
@@ -84,7 +93,7 @@ func (ce *CompilationEngine) compileClass() error {
 	// Found class, write keyword
 	ce.marshaljt() // <keyword> class </keyword>
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -95,7 +104,7 @@ func (ce *CompilationEngine) compileClass() error {
 
 	ce.marshaljt() // <identifier> ClassName </identifier>
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -104,7 +113,7 @@ func (ce *CompilationEngine) compileClass() error {
 		return SyntaxError(err)
 	}
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -118,7 +127,7 @@ func (ce *CompilationEngine) compileClass() error {
 			return SyntaxError(err)
 		}
 
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 	}
@@ -134,7 +143,7 @@ func (ce *CompilationEngine) compileClass() error {
 			return SyntaxError(err)
 		}
 
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 
@@ -200,7 +209,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	// found "static" or "field"
 	ce.marshaljt() // <keyword> * </keyword>
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -210,7 +219,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	}
 
 	// Check for varName
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 	_, err := ce.jt.Identifier()
@@ -220,7 +229,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	ce.marshaljt() // <identifier> varName </identifier>
 
 	// Check for a comma separated list of more varNames
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 	for sym, err := ce.jt.Symbol(); sym == ","; sym, err = ce.jt.Symbol() {
@@ -230,7 +239,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 		ce.marshaljt() // <keyword> , </keyword>
 
 		// Check for varName
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 		_, err := ce.jt.Identifier()
@@ -238,7 +247,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 			return SyntaxError(err)
 		}
 		ce.marshaljt() // <identifier> varName </identifier>
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 	}
@@ -267,7 +276,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	// found "constructor" or "function" or "method"
 	ce.marshaljt() // <keyword> * </keyword>
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -276,7 +285,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return err
 	}
 
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -289,11 +298,43 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	ce.marshaljt() // <identifier> subroutineName </identifier>
 
 	// Eat the subroutineName
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
 
 	if err := ce.compileParameterList(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileSubroutineBody(); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
+}
+
+// '{' varDec* statements'}'
+func (ce *CompilationEngine) compileSubroutineBody() error {
+	ce.openXMLTag("subroutineBody")        // <subroutineBody>
+	defer ce.closeXMLTag("subroutineBody") //</subroutineBody>
+
+	var err error
+
+	// Eat what should be a "{"
+	if err = ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err = ce.compileSymbol("{"); err != nil {
+		return SyntaxError(err)
+	}
+
+	// Eat the "{"
+	if err = ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err = ce.compileVarDec(); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -317,7 +358,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 	if err := ce.compileSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.jt.Advance(); err != nil {
+	if err := ce.advance(); err != nil {
 		return err
 	}
 
@@ -332,7 +373,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 		}
 
 		// Eat the type token
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 
@@ -343,7 +384,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 		ce.marshaljt() // <identifier> varName </identifier>
 
 		// Eat the varName token
-		if err := ce.jt.Advance(); err != nil {
+		if err := ce.advance(); err != nil {
 			return err
 		}
 
@@ -354,7 +395,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 		}
 		if sym == "," {
 			ce.compileSymbol(sym)
-			if err := ce.jt.Advance(); err != nil {
+			if err := ce.advance(); err != nil {
 				return err
 			}
 		}
@@ -364,15 +405,58 @@ func (ce *CompilationEngine) compileParameterList() error {
 	ce.closeXMLTag("parameterList") // </parameterList>
 	// Now we should be at the closing ")"
 	ce.compileSymbol(")")
-	if err := ce.jt.Advance(); err != nil {
-		return err
-	}
-
 	return nil
 }
 
-func (ce *CompilationEngine) compileVarDec() {
-	panic("not implemented") // TODO: Implement
+func (ce *CompilationEngine) compileVarDec() error {
+	ce.openXMLTag("varDec")
+	defer ce.closeXMLTag("varDec")
+
+	var err error
+
+	// 'var' type varName (',' varName)* ';'
+	for kw, err := ce.jt.KeyWord(); kw == "var"; kw, err = ce.jt.KeyWord() {
+		ce.marshaljt() // <keyword> var </keyword>
+		// Advance and compile type
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.compileType(); err != nil {
+			return err
+		}
+		// Advance and compile varName (',' varName)*
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		// check for varName
+		for _, err = ce.jt.Identifier(); err == nil; _, err = ce.jt.Identifier() {
+			ce.marshaljt() // <identifier> varName </identifier>
+			// Advance and check for ";" or ","
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			sym, err := ce.jt.Symbol()
+			if err != nil {
+				return SyntaxError(err)
+			}
+			if sym == ";" {
+				ce.compileSymbol(";")
+				break
+			} else if sym == "," {
+				ce.compileSymbol(",")
+				continue
+			} else {
+				return SyntaxError(fmt.Errorf("expected a \",\" or \";\""))
+			}
+		}
+		if err != nil {
+			return SyntaxError(err)
+		}
+	}
+	if err != nil {
+		return SyntaxError(err)
+	}
+	return nil
 }
 
 func (ce *CompilationEngine) compileStatements() {
