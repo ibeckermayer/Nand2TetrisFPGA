@@ -236,7 +236,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 		if err != nil {
 			return SyntaxError(err)
 		}
-		ce.marshaljt() // <keyword> , </keyword>
+		ce.marshaljt() // <symbol> , </symbol>
 
 		// Check for varName
 		if err := ce.advance(); err != nil {
@@ -408,14 +408,18 @@ func (ce *CompilationEngine) compileParameterList() error {
 	return nil
 }
 
+// 'var' type varName (',' varName)* ';'
 func (ce *CompilationEngine) compileVarDec() error {
 	ce.openXMLTag("varDec")
 	defer ce.closeXMLTag("varDec")
 
-	var err error
+	// Check for 'var'
+	if kw, err := ce.jt.KeyWord(); kw != "var" || err != nil {
+		return SyntaxError(err)
+	}
 
 	// 'var' type varName (',' varName)* ';'
-	for kw, err := ce.jt.KeyWord(); kw == "var"; kw, err = ce.jt.KeyWord() {
+	for kw, _ := ce.jt.KeyWord(); kw == "var"; kw, _ = ce.jt.KeyWord() {
 		ce.marshaljt() // <keyword> var </keyword>
 		// Advance and compile type
 		if err := ce.advance(); err != nil {
@@ -429,33 +433,44 @@ func (ce *CompilationEngine) compileVarDec() error {
 			return SyntaxError(err)
 		}
 		// check for varName
-		for _, err = ce.jt.Identifier(); err == nil; _, err = ce.jt.Identifier() {
-			ce.marshaljt() // <identifier> varName </identifier>
-			// Advance and check for ";" or ","
+		if _, err := ce.jt.Identifier(); err != nil {
+			return SyntaxError(err)
+		}
+		ce.marshaljt() // <identifier> varName </identifier>
+
+		// eat the varName
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+
+		for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
+			ce.marshaljt() // <keyword> , </keyword>
+			// Advance and check for "varName"
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
-			sym, err := ce.jt.Symbol()
+			_, err := ce.jt.Identifier()
 			if err != nil {
 				return SyntaxError(err)
 			}
-			if sym == ";" {
-				ce.compileSymbol(";")
-				break
-			} else if sym == "," {
-				ce.compileSymbol(",")
-				continue
-			} else {
-				return SyntaxError(fmt.Errorf("expected a \",\" or \";\""))
+			ce.marshaljt() // <identifier> varName </identifier>
+
+			// Advance to either the next "," and repeat the loop, or break and check for ";"
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
 			}
 		}
-		if err != nil {
+
+		// Check for ";"
+		if err := ce.compileSymbol(";"); err != nil {
+			return SyntaxError(err)
+		}
+		// Advance, either to another "var" in which case the loop will repeat, or move on to the next type of element
+		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
 	}
-	if err != nil {
-		return SyntaxError(err)
-	}
+
 	return nil
 }
 
