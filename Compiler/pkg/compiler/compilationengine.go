@@ -4,11 +4,23 @@ import (
 	"encoding/xml"
 	"errors"
 	"fmt"
+	"log"
 	"os"
+	"runtime"
 )
 
-// SyntaxError is a syntax error
-type SyntaxError error
+//SyntaxError logs the function name, file, and line number
+func SyntaxError(err error) error {
+	if err != nil {
+		// notice that we're using 1, so it will actually log the where
+		// the error happened, 0 = this function, we don't want that.
+		pc, fn, line, _ := runtime.Caller(1)
+
+		log.Printf("[error] in %s[%s:%d] %v", runtime.FuncForPC(pc).Name(), fn, line, err)
+		return err
+	}
+	return nil
+}
 
 // CompilationEngine effects the actual compilation output.
 // Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
@@ -338,6 +350,10 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 		return SyntaxError(err)
 	}
 
+	if err = ce.compileStatements(); err != nil {
+		return SyntaxError(err)
+	}
+
 	return nil
 }
 
@@ -474,27 +490,73 @@ func (ce *CompilationEngine) compileVarDec() error {
 	return nil
 }
 
-func (ce *CompilationEngine) compileStatements() {
+func isSatementKeyword(kw string) bool {
+	return kw == "let" || kw == "if" || kw == "while" || kw == "do" || kw == "return"
+}
+
+// statement*
+// statement: letStatement | ifStatement | whileStatement | doStatement | returnStatement
+func (ce *CompilationEngine) compileStatements() error {
+	ce.openXMLTag("statements")
+	defer ce.closeXMLTag("statements")
+
+	// compileVarDec is called before this function, and will have advanced us to the first word of the first statement
+
+	for kw, _ := ce.jt.KeyWord(); isSatementKeyword(kw); kw, _ = ce.jt.KeyWord() {
+
+		switch kw {
+		case "let":
+			if err := ce.compileLet(); err != nil {
+				return SyntaxError(err)
+			}
+		case "if":
+			if err := ce.compileIf(); err != nil {
+				return SyntaxError(err)
+			}
+		case "while":
+			if err := ce.compileWhile(); err != nil {
+				return SyntaxError(err)
+			}
+		case "do":
+			if err := ce.compileDo(); err != nil {
+				return SyntaxError(err)
+			}
+		case "return":
+			if err := ce.compileReturn(); err != nil {
+				return SyntaxError(err)
+			}
+		default:
+			return SyntaxError(fmt.Errorf("unexpected error in compileStatements, should be impossible"))
+		}
+
+		// Advance in order to check for another statement keyword on the next round of the loop
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+	}
+
+	return nil
+}
+
+func (ce *CompilationEngine) compileDo() error {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) compileDo() {
+func (ce *CompilationEngine) compileLet() error {
+	ce.openXMLTag("letStatement")
+	defer ce.closeXMLTag("letStatement")
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) compileLet() {
+func (ce *CompilationEngine) compileWhile() error {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) compileWhile() {
+func (ce *CompilationEngine) compileReturn() error {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) compileReturn() {
-	panic("not implemented") // TODO: Implement
-}
-
-func (ce *CompilationEngine) compileIf() {
+func (ce *CompilationEngine) compileIf() error {
 	panic("not implemented") // TODO: Implement
 }
 
