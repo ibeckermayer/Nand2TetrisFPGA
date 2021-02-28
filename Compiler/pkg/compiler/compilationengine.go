@@ -95,15 +95,9 @@ func (ce *CompilationEngine) compileClass() error {
 	defer ce.closeXMLTag("class") // defer closing </class>
 
 	// Check that first token is "class"
-	if kw, err := ce.jt.KeyWord(); kw != "class" {
-		if err != nil {
-			return SyntaxError(err)
-		}
-		return SyntaxError(fmt.Errorf("expected keyword \"class\""))
+	if err := ce.compileKeyword("class"); err != nil {
+		return SyntaxError(err)
 	}
-
-	// Found class, write keyword
-	ce.marshaljt() // <keyword> class </keyword>
 
 	if err := ce.advance(); err != nil {
 		return err
@@ -374,6 +368,18 @@ func (ce *CompilationEngine) compileSymbol(sym string) error {
 	return nil
 }
 
+func (ce *CompilationEngine) compileKeyword(kw string) error {
+	if k, err := ce.jt.KeyWord(); k != kw {
+		if err != nil {
+			return SyntaxError(err)
+		}
+		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", keyWord, kw))
+	}
+
+	ce.marshaljt() // <symbol> kw </symbol>
+	return nil
+}
+
 // '(' ((type varName)(',' type varName)*)? ')'
 func (ce *CompilationEngine) compileParameterList() error {
 	if err := ce.compileSymbol("("); err != nil {
@@ -503,7 +509,10 @@ func (ce *CompilationEngine) compileStatements() error {
 
 	// compileVarDec is called before this function, and will have advanced us to the first word of the first statement
 
-	for kw, _ := ce.jt.KeyWord(); isSatementKeyword(kw); kw, _ = ce.jt.KeyWord() {
+	for kw, err := ce.jt.KeyWord(); isSatementKeyword(kw); kw, err = ce.jt.KeyWord() {
+		if err != nil {
+			return SyntaxError(err)
+		}
 
 		switch kw {
 		case "let":
@@ -543,26 +552,94 @@ func (ce *CompilationEngine) compileDo() error {
 	panic("not implemented") // TODO: Implement
 }
 
+// 'let' varName ('[' expression ']')? '=' expression ';'
 func (ce *CompilationEngine) compileLet() error {
 	ce.openXMLTag("letStatement")
 	defer ce.closeXMLTag("letStatement")
+	var err error
 
+	if err = ce.compileKeyword("let"); err != nil {
+		return SyntaxError(err)
+	}
+
+	// advance and compile varName
+	if err = ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err = ce.compileVarName(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// advance and check for '['
+	if err = ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	var sym string
+	if sym, err = ce.jt.Symbol(); err != nil {
+		return SyntaxError(err)
+	}
+	if sym == "[" {
+		// eat the '[' and compile expression
+		if err = ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err = ce.compileExpression(); err != nil {
+			return SyntaxError(err)
+		}
+		// TODO: may need to call ce.advance() here depending on nature of compileExpression()
+		// compile closing ']'
+		if sym, err = ce.jt.Symbol(); err != nil {
+			return SyntaxError(err)
+		}
+		if sym != "]" {
+			return SyntaxError(fmt.Errorf("expected closing \"]\""))
+		}
+		if err = ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+	}
+
+	// demand, compile, and eat '='
+	if err = ce.compileSymbol("="); err != nil {
+		return SyntaxError(err)
+	}
+	if err = ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// compile expression
+	if err = ce.compileExpression(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// TODO: may need to call ce.advance() here depending on nature of compileExpression()
+	if err = ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
+	}
+	return nil
 }
 
+// 'while '(' expression ')' '{' statements '}'
 func (ce *CompilationEngine) compileWhile() error {
 	panic("not implemented") // TODO: Implement
 }
 
+// 'return' expression? ';'
 func (ce *CompilationEngine) compileReturn() error {
 	panic("not implemented") // TODO: Implement
 }
 
+// 'if' '{' expression '}' '{' statements '}'
+// ('else' '{' statements '}')?
 func (ce *CompilationEngine) compileIf() error {
 	panic("not implemented") // TODO: Implement
 }
 
-func (ce *CompilationEngine) compileExpression() {
-	panic("not implemented") // TODO: Implement
+func (ce *CompilationEngine) compileExpression() error {
+	ce.openXMLTag("expression")
+	defer ce.closeXMLTag("expression")
+
+	return nil
 }
 
 func (ce *CompilationEngine) compileTerm() {
