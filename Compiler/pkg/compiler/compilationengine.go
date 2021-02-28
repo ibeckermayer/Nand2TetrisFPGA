@@ -234,11 +234,9 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	if err := ce.advance(); err != nil {
 		return err
 	}
-	_, err := ce.jt.Identifier()
-	if err != nil {
+	if err := ce.compileVarName(); err != nil {
 		return SyntaxError(err)
 	}
-	ce.marshaljt() // <identifier> varName </identifier>
 
 	// Check for a comma separated list of more varNames
 	if err := ce.advance(); err != nil {
@@ -254,18 +252,17 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 		if err := ce.advance(); err != nil {
 			return err
 		}
-		_, err := ce.jt.Identifier()
-		if err != nil {
+		if err := ce.compileVarName(); err != nil {
 			return SyntaxError(err)
 		}
-		ce.marshaljt() // <identifier> varName </identifier>
+
 		if err := ce.advance(); err != nil {
 			return err
 		}
 	}
 
 	// Should wind up at a ";"
-	if err = ce.compileSymbol(";"); err != nil {
+	if err := ce.compileSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -357,6 +354,14 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 	return nil
 }
 
+func (ce *CompilationEngine) compileVarName() error {
+	// Next should be a varName
+	if ce.jt.TokenType() != identifier {
+		return SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
+	}
+	return ce.marshaljt() // <identifier> varName </identifier>
+}
+
 func (ce *CompilationEngine) compileSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
@@ -394,10 +399,9 @@ func (ce *CompilationEngine) compileParameterList() error {
 		}
 
 		// Next should be a varName
-		if ce.jt.TokenType() != identifier {
-			return SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
+		if err := ce.compileVarName(); err != nil {
+			return SyntaxError(err)
 		}
-		ce.marshaljt() // <identifier> varName </identifier>
 
 		// Eat the varName token
 		if err := ce.advance(); err != nil {
@@ -448,11 +452,10 @@ func (ce *CompilationEngine) compileVarDec() error {
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
-		// check for varName
-		if _, err := ce.jt.Identifier(); err != nil {
+		// Next should be a varName
+		if err := ce.compileVarName(); err != nil {
 			return SyntaxError(err)
 		}
-		ce.marshaljt() // <identifier> varName </identifier>
 
 		// eat the varName
 		if err := ce.advance(); err != nil {
@@ -465,11 +468,9 @@ func (ce *CompilationEngine) compileVarDec() error {
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
-			_, err := ce.jt.Identifier()
-			if err != nil {
+			if err := ce.compileVarName(); err != nil {
 				return SyntaxError(err)
 			}
-			ce.marshaljt() // <identifier> varName </identifier>
 
 			// Advance to either the next "," and repeat the loop, or break and check for ";"
 			if err := ce.advance(); err != nil {
@@ -545,7 +546,7 @@ func (ce *CompilationEngine) compileDo() error {
 func (ce *CompilationEngine) compileLet() error {
 	ce.openXMLTag("letStatement")
 	defer ce.closeXMLTag("letStatement")
-	panic("not implemented") // TODO: Implement
+
 }
 
 func (ce *CompilationEngine) compileWhile() error {
