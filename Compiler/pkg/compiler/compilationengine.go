@@ -7,6 +7,7 @@ import (
 	"log"
 	"os"
 	"runtime"
+	"strconv"
 )
 
 //SyntaxError logs the function name, file, and line number
@@ -356,6 +357,14 @@ func (ce *CompilationEngine) compileVarName() error {
 	return ce.marshaljt() // <identifier> varName </identifier>
 }
 
+func (ce *CompilationEngine) compileIdentifier() error {
+	// Next should be a varName
+	if ce.jt.TokenType() != identifier {
+		return SyntaxError(fmt.Errorf("Expected an %v", identifier))
+	}
+	return ce.marshaljt() // <identifier> varName </identifier>
+}
+
 func (ce *CompilationEngine) compileSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
@@ -548,8 +557,81 @@ func (ce *CompilationEngine) compileStatements() error {
 	return nil
 }
 
+// subroutineName '(' expressionList ')' |
+// (className | varName) '.' subroutineName '(' expressionList ')'
+func (ce *CompilationEngine) compileSubroutineCall() error {
+	if err := ce.compileIdentifier(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	var err error
+	var sym string
+	sym, err = ce.jt.Symbol() // either a "." or a "("
+	if err != nil {
+		return SyntaxError(fmt.Errorf("expected a \".\" or \"(\""))
+	}
+	if sym == "." {
+		// ".", so compile and eat it and compile its subsequent subroutineName
+		if err := ce.compileSymbol("."); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		// subroutineName
+		if err := ce.compileIdentifier(); err != nil {
+			return SyntaxError(err)
+		}
+		// advance and set external scope's sym variable to the next sym, which ought to be a "("
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		sym, err = ce.jt.Symbol() // should be a "(" (checked outside this if statement)
+		if err != nil {
+			return SyntaxError(fmt.Errorf("expected a \".\" or \"(\""))
+		}
+	}
+
+	if err := ce.compileSymbol("("); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileExpressionList(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSymbol(")"); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
+}
+
+// 'do' subroutineCall ';'
 func (ce *CompilationEngine) compileDo() error {
-	panic("not implemented") // TODO: Implement
+	ce.openXMLTag("doStatement")
+	defer ce.closeXMLTag("doStatement")
+
+	if err := ce.compileKeyword("do"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSubroutineCall(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
+	}
+	return nil
 }
 
 // 'let' varName ('[' expression ']')? '=' expression ';'
@@ -635,17 +717,115 @@ func (ce *CompilationEngine) compileIf() error {
 	panic("not implemented") // TODO: Implement
 }
 
+// isOp returns true if the passed symbol is a valid op, else returns false
+func isOp(sym string) bool {
+	return (sym == "+" || sym == "-" || sym == "*" || sym == "/" || sym == "&" || sym == "|" || sym == "<" || sym == ">" || sym == "=")
+}
+
+// term (op term)*
 func (ce *CompilationEngine) compileExpression() error {
 	ce.openXMLTag("expression")
 	defer ce.closeXMLTag("expression")
 
+	if err := ce.compileTerm(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	for sym, _ := ce.jt.Symbol(); isOp(sym); sym, _ = ce.jt.Symbol() {
+		if err := ce.compileSymbol(sym); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.compileTerm(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+	}
+
 	return nil
 }
 
-func (ce *CompilationEngine) compileTerm() {
-	panic("not implemented") // TODO: Implement
+// integerConstant | stringConstant | keywordConstant |
+// varName | varName '[' expression ']' | subroutineCall |
+// '(' expression ')' | unaryOp term
+func (ce *CompilationEngine) compileTerm() error {
+	ce.openXMLTag("term")
+	defer ce.closeXMLTag("term")
+
+	if ce.jt.TokenType() == intConst {
+		ce.openXMLTag("integerConstant")
+		ic, err := ce.jt.IntVal()
+		if err != nil {
+			return SyntaxError(err)
+		}
+		ce.writeXMLData(strconv.Itoa(ic))
+		ce.closeXMLTag("integerConstant")
+	} else if ce.jt.TokenType() == strConst {
+		ce.openXMLTag("stringConstant")
+		sc, err := ce.jt.StringVal()
+		if err != nil {
+			return SyntaxError(err)
+		}
+		ce.writeXMLData(sc)
+		ce.closeXMLTag("stringConstant")
+	} else if ce.jt.TokenType() == keyWord {
+		kw, err := ce.jt.KeyWord()
+		if err != nil {
+			return SyntaxError(err)
+		}
+		if !(kw == "true" || kw == "false" || kw == "null" || kw == "this") {
+			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
+		}
+		ce.marshaljt()
+	} else if ce.jt.TokenType() == symbol {
+		// '(' expression ')' | unaryOp term
+		sym, err := ce.jt.Symbol()
+		if err != nil {
+			return SyntaxError(err)
+		}
+		if sym == "(" {
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileExpression(); err != nil {
+				return SyntaxError(err)
+			}
+			// TODO: may need to put an advance() here depending on the nature of compileExpression()
+			if err = ce.compileSymbol(")"); err != nil {
+				return SyntaxError(err)
+			}
+		} else if sym == "-" {
+			ce.compileSymbol("-")
+		} else if sym == "~" {
+			ce.compileSymbol("~")
+		} else {
+			return SyntaxError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
+		}
+	} else if ce.jt.TokenType() == identifier {
+		// TODO: need to implement look ahead checks to determine
+		// varName | varName '[' expression ']' | subroutineCall
+		if err := ce.marshaljt(); err != nil {
+			// temporarily just <identifier> x </identifier>
+			return SyntaxError(err)
+		}
+	} else {
+		return SyntaxError(fmt.Errorf("unknown error"))
+	}
+
+	return nil
 }
 
-func (ce *CompilationEngine) compileExpressionList() {
-	panic("not implemented") // TODO: Implement
+func (ce *CompilationEngine) compileExpressionList() error {
+	ce.openXMLTag("expressionList")
+	defer ce.closeXMLTag("expressionList")
+	// TODO finish the rest of this
+	return nil
 }
