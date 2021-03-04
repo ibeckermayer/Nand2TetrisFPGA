@@ -338,11 +338,22 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 		return SyntaxError(err)
 	}
 
-	if err = ce.compileVarDec(); err != nil {
-		return SyntaxError(err)
+	// varDec*
+	for kw, _ := ce.jt.KeyWord(); kw == "var"; kw, _ = ce.jt.KeyWord() {
+		if err = ce.compileVarDec(); err != nil {
+			return SyntaxError(err)
+		}
+		// compiled a varDec, advance and try again or move on
+		if err = ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
 	}
 
 	if err = ce.compileStatements(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err = ce.compileSymbol("}"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -448,59 +459,54 @@ func (ce *CompilationEngine) compileVarDec() error {
 	ce.openXMLTag("varDec")
 	defer ce.closeXMLTag("varDec")
 
-	// Check for 'var'
-	if kw, err := ce.jt.KeyWord(); kw != "var" || err != nil {
+	// compile var
+	if err := ce.compileKeyword("var"); err != nil {
 		return SyntaxError(err)
 	}
 
-	// 'var' type varName (',' varName)* ';'
-	for kw, _ := ce.jt.KeyWord(); kw == "var"; kw, _ = ce.jt.KeyWord() {
-		ce.marshaljt() // <keyword> var </keyword>
-		// Advance and compile type
+	// Advance and compile type
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileType(); err != nil {
+		return err
+	}
+
+	// Advance and compile varName
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileVarName(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// Now advance again and see if there's a (',' varName)*
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
+		// (',' varName)*
+		if err := ce.compileSymbol(","); err != nil {
+			return SyntaxError(err)
+		}
+
+		// Advance and check for "varName"
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
-		if err := ce.compileType(); err != nil {
-			return err
-		}
-		// Advance and compile varName (',' varName)*
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
-		// Next should be a varName
 		if err := ce.compileVarName(); err != nil {
 			return SyntaxError(err)
 		}
 
-		// eat the varName
+		// Advance to either the next "," and repeat the loop, or break and check for ";"
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
+	}
 
-		for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
-			ce.marshaljt() // <keyword> , </keyword>
-			// Advance and check for "varName"
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
-			if err := ce.compileVarName(); err != nil {
-				return SyntaxError(err)
-			}
-
-			// Advance to either the next "," and repeat the loop, or break and check for ";"
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
-		}
-
-		// Check for ";"
-		if err := ce.compileSymbol(";"); err != nil {
-			return SyntaxError(err)
-		}
-		// Advance, either to another "var" in which case the loop will repeat, or move on to the next type of element
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
+	// Check for ";"
+	if err := ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
 	}
 
 	return nil
@@ -708,7 +714,31 @@ func (ce *CompilationEngine) compileWhile() error {
 
 // 'return' expression? ';'
 func (ce *CompilationEngine) compileReturn() error {
-	panic("not implemented") // TODO: Implement
+	ce.openXMLTag("returnStatement")
+	defer ce.closeXMLTag("returnStatement")
+
+	if err := ce.compileKeyword("return"); err != nil {
+		return SyntaxError(err)
+	}
+
+	// advance and check for ';'
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// if not ';', should be an expression
+	if sym, _ := ce.jt.Symbol(); sym != ";" {
+		if err := ce.compileExpression(); err != nil {
+			return SyntaxError(err)
+		}
+	}
+
+	// now compile the ';'
+	if err := ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
 }
 
 // 'if' '{' expression '}' '{' statements '}'
