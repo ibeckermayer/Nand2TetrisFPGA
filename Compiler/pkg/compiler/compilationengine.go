@@ -317,7 +317,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	return nil
 }
 
-// '{' varDec* statements'}'
+// '{' varDec* statements '}'
 func (ce *CompilationEngine) compileSubroutineBody() error {
 	ce.openXMLTag("subroutineBody")        // <subroutineBody>
 	defer ce.closeXMLTag("subroutineBody") //</subroutineBody>
@@ -518,11 +518,12 @@ func isSatementKeyword(kw string) bool {
 
 // statement*
 // statement: letStatement | ifStatement | whileStatement | doStatement | returnStatement
+// Whichever function calls this function should have advanced us to the first word of the first statement.
+// This function exits after a loop hits a non-statement-starting keyword, so the caller should expect to
+// already be at the next token.
 func (ce *CompilationEngine) compileStatements() error {
 	ce.openXMLTag("statements")
 	defer ce.closeXMLTag("statements")
-
-	// compileVarDec is called before this function, and will have advanced us to the first word of the first statement
 
 	for kw, err := ce.jt.KeyWord(); isSatementKeyword(kw); kw, err = ce.jt.KeyWord() {
 		if err != nil {
@@ -667,6 +668,9 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 	if sym == "[" {
+		if err := ce.compileSymbol("["); err != nil {
+			return SyntaxError(err)
+		}
 		// eat the '[' and compile expression
 		if err = ce.advance(); err != nil {
 			return SyntaxError(err)
@@ -674,13 +678,8 @@ func (ce *CompilationEngine) compileLet() error {
 		if err = ce.compileExpression(); err != nil {
 			return SyntaxError(err)
 		}
-		// TODO: may need to call ce.advance() here depending on nature of compileExpression()
-		// compile closing ']'
-		if sym, err = ce.jt.Symbol(); err != nil {
+		if err := ce.compileSymbol("]"); err != nil {
 			return SyntaxError(err)
-		}
-		if sym != "]" {
-			return SyntaxError(fmt.Errorf("expected closing \"]\""))
 		}
 		if err = ce.advance(); err != nil {
 			return SyntaxError(err)
@@ -741,10 +740,89 @@ func (ce *CompilationEngine) compileReturn() error {
 	return nil
 }
 
-// 'if' '{' expression '}' '{' statements '}'
+// 'if' '(' expression ')' '{' statements '}'
 // ('else' '{' statements '}')?
+// Peeks ahead to check for an else statement, so the caller can expect to be
+// advanced to the next token upon this function returning.
 func (ce *CompilationEngine) compileIf() error {
-	panic("not implemented") // TODO: Implement
+	// this chunk of code is used in regular if and if-else, so abstracted into an internal
+	// function to avoid having it written twice
+	compileStatementsSubsection := func() error {
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.compileSymbol("{"); err != nil {
+			return SyntaxError(err)
+		}
+
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.compileStatements(); err != nil {
+			return SyntaxError(err)
+		}
+
+		// compileStatements loops us to next token so no need to call advance()
+		if err := ce.compileSymbol("}"); err != nil {
+			return SyntaxError(err)
+		}
+		return nil
+	}
+
+	ce.openXMLTag("ifStatement")
+	defer ce.closeXMLTag("ifStatement")
+
+	if err := ce.compileKeyword("if"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSymbol("("); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileExpression(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// compileExpression loops us to next token so no need to call advance()
+	if err := ce.compileSymbol(")"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := compileStatementsSubsection(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// advance and check for an else statement
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if ce.jt.TokenType() == keyWord {
+		if kw, _ := ce.jt.KeyWord(); kw == "else" {
+			if err := ce.compileKeyword("else"); err != nil {
+				return SyntaxError(err)
+			}
+
+			if err := compileStatementsSubsection(); err != nil {
+				return SyntaxError(err)
+			}
+
+			// advance after the else is compiled, so that in both the if and if-else cases
+			// the function returns with the next token in the chamber (iow this function's api
+			// should be the same in both the if and if-else cases)
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+		}
+	}
+
+	return nil
 }
 
 // isOp returns true if the passed symbol is a valid op, else returns false
@@ -753,6 +831,7 @@ func isOp(sym string) bool {
 }
 
 // term (op term)*
+// Loops until a non (op term) is found, so caller should expect to be at the next token when this function returns.
 func (ce *CompilationEngine) compileExpression() error {
 	ce.openXMLTag("expression")
 	defer ce.closeXMLTag("expression")
@@ -828,7 +907,6 @@ func (ce *CompilationEngine) compileTerm() error {
 			if err := ce.compileExpression(); err != nil {
 				return SyntaxError(err)
 			}
-			// TODO: may need to put an advance() here depending on the nature of compileExpression()
 			if err = ce.compileSymbol(")"); err != nil {
 				return SyntaxError(err)
 			}
