@@ -530,6 +530,9 @@ func (ce *CompilationEngine) compileStatements() error {
 			return SyntaxError(err)
 		}
 
+		// Each of the following compileX() functions should eat their final character before returning
+		// in order to simplify switch case logic. There is no need to call advance() after compileX(),
+		// since we can expect every compileX() below will have done so already.
 		switch kw {
 		case "let":
 			if err := ce.compileLet(); err != nil {
@@ -553,11 +556,6 @@ func (ce *CompilationEngine) compileStatements() error {
 			}
 		default:
 			return SyntaxError(fmt.Errorf("unexpected error in compileStatements, should be impossible"))
-		}
-
-		// Advance in order to check for another statement keyword on the next round of the loop
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
 		}
 	}
 
@@ -618,6 +616,7 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 }
 
 // 'do' subroutineCall ';'
+// Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileDo() error {
 	ce.openXMLTag("doStatement")
 	defer ce.closeXMLTag("doStatement")
@@ -638,10 +637,15 @@ func (ce *CompilationEngine) compileDo() error {
 	if err := ce.compileSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
+	// eat own final character
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
 	return nil
 }
 
 // 'let' varName ('[' expression ']')? '=' expression ';'
+// Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileLet() error {
 	ce.openXMLTag("letStatement")
 	defer ce.closeXMLTag("letStatement")
@@ -699,8 +703,12 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 
-	// TODO: may need to call ce.advance() here depending on nature of compileExpression()
 	if err = ce.compileSymbol(";"); err != nil {
+		return SyntaxError(err)
+	}
+
+	// Eat own final character
+	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
 	return nil
@@ -712,6 +720,7 @@ func (ce *CompilationEngine) compileWhile() error {
 }
 
 // 'return' expression? ';'
+// Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileReturn() error {
 	ce.openXMLTag("returnStatement")
 	defer ce.closeXMLTag("returnStatement")
@@ -737,13 +746,17 @@ func (ce *CompilationEngine) compileReturn() error {
 		return SyntaxError(err)
 	}
 
+	// eat own final character
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
 	return nil
 }
 
 // 'if' '(' expression ')' '{' statements '}'
 // ('else' '{' statements '}')?
-// Peeks ahead to check for an else statement, so the caller can expect to be
-// advanced to the next token upon this function returning.
+// Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileIf() error {
 	// this chunk of code is used in regular if and if-else, so abstracted into an internal
 	// function to avoid having it written twice
