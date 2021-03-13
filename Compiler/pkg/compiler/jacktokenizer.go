@@ -113,6 +113,16 @@ func isKeyWord(potentialKeyWord string) bool {
 	return false
 }
 
+// Peek peaks ahead to the next character in the input stream.
+// Because our input stream index comes to rest after the last character of our current
+// token, we just call jt.curChar() with no arguments
+func (jt *JackTokenizer) Peek() (byte, error) {
+	if !(jt.i < jt.streamlen) {
+		return 0, fmt.Errorf("unexpect EOF!")
+	}
+	return jt.curChar(), nil
+}
+
 // Advance -- each [non-recursive] call to jt.Advance() eats the next token in the jt.stream and and updates jt's
 // internal state to reflect the token it just ate: It updates tokenType and sets whichever
 // of jt.intVal, jt.stringVal, jt.keyWord, or jt.identifier corresponds.

@@ -45,3 +45,19 @@ func TestCeExpressionLessSquareSquare(t *testing.T) {
 func TestCeExpressionLessSquareSquareGame(t *testing.T) {
 	runCeTest("./ExpressionLessSquare/SquareGame.jack", t)
 }
+
+func TestCeArrayTestMain(t *testing.T) {
+	runCeTest("./ArrayTest/Main.jack", t)
+}
+
+func TestCeSquareMain(t *testing.T) {
+	runCeTest("./Square/Main.jack", t)
+}
+
+func TestCeSquareSquare(t *testing.T) {
+	runCeTest("./Square/Square.jack", t)
+}
+
+func TestCeSquareSquareGame(t *testing.T) {
+	runCeTest("./Square/SquareGame.jack", t)
+}

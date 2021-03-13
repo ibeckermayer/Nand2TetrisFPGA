@@ -950,7 +950,7 @@ func (ce *CompilationEngine) compileTerm() error {
 		if !(kw == "true" || kw == "false" || kw == "null" || kw == "this") {
 			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
-		ce.marshaljt()
+		return ce.marshaljt()
 	} else if ce.jt.TokenType() == symbol {
 		// '(' expression ')' | unaryOp term
 		sym, err := ce.jt.Symbol()
@@ -958,6 +958,9 @@ func (ce *CompilationEngine) compileTerm() error {
 			return SyntaxError(err)
 		}
 		if sym == "(" {
+			if err := ce.compileSymbol("("); err != nil {
+				return SyntaxError(err)
+			}
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
@@ -968,18 +971,61 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else if sym == "-" {
-			ce.compileSymbol("-")
+			if err := ce.compileSymbol("-"); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileTerm(); err != nil {
+				return SyntaxError(err)
+			}
 		} else if sym == "~" {
-			ce.compileSymbol("~")
+			if err := ce.compileSymbol("~"); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileTerm(); err != nil {
+				return SyntaxError(err)
+			}
+
 		} else {
 			return SyntaxError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
 		}
 	} else if ce.jt.TokenType() == identifier {
 		// TODO: need to implement look ahead checks to determine
 		// varName | varName '[' expression ']' | subroutineCall
-		if err := ce.marshaljt(); err != nil {
-			// temporarily just <identifier> x </identifier>
+		var err error
+		var peeked byte
+		peeked, err = ce.jt.Peek()
+		if err != nil {
 			return SyntaxError(err)
+		}
+		if peeked == '.' || peeked == '(' {
+			return ce.compileSubroutineCall()
+		} else if peeked == '[' {
+			if err := ce.compileVarName(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileSymbol("["); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileExpression(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileSymbol("]"); err != nil {
+				return SyntaxError(err)
+			}
+		} else {
+			return ce.compileVarName()
 		}
 	} else {
 		return SyntaxError(fmt.Errorf("unknown error"))
