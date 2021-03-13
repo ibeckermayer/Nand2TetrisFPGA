@@ -712,8 +712,55 @@ func (ce *CompilationEngine) compileLet() error {
 }
 
 // 'while '(' expression ')' '{' statements '}'
+// eats its own final token before returning, so calling function can expect to already be on the next token
 func (ce *CompilationEngine) compileWhile() error {
-	panic("not implemented") // TODO: Implement
+	ce.openXMLTag("whileStatement")
+	defer ce.closeXMLTag("whileStatement")
+
+	if err := ce.compileKeyword("while"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSymbol("("); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileExpression(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileSymbol(")"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileSymbol("{"); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.compileStatements(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err := ce.compileSymbol("}"); err != nil {
+		return SyntaxError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
 }
 
 // 'return' expression? ';'
