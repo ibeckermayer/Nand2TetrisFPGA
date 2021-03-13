@@ -605,9 +605,6 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 	if err := ce.compileExpressionList(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
 	if err := ce.compileSymbol(")"); err != nil {
 		return SyntaxError(err)
 	}
@@ -944,9 +941,36 @@ func (ce *CompilationEngine) compileTerm() error {
 	return nil
 }
 
+// (expression (',' expression)* )?
+// caller should expect to be at the next token when this fucntion returns
 func (ce *CompilationEngine) compileExpressionList() error {
 	ce.openXMLTag("expressionList")
 	defer ce.closeXMLTag("expressionList")
-	// TODO finish the rest of this
+
+	// Advance and check if we are at a closing parenthesis
+	if err := ce.advance(); err != nil {
+		return SyntaxError(err)
+	}
+	sym, _ := ce.jt.Symbol()
+	if ce.jt.TokenType() == symbol && sym == ")" {
+		// The next token was a closing parenthesis; simply return, and the caller is expected
+		// to compile the closing paren
+		return nil
+	}
+
+	// compile expression
+	if err := ce.compileExpression(); err != nil {
+		return SyntaxError(err)
+	}
+	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
+		ce.compileSymbol(sym) // compile ","
+		if err := ce.advance(); err != nil {
+			return SyntaxError(err)
+		}
+		if err := ce.compileExpression(); err != nil {
+			return SyntaxError(err)
+		}
+	}
+
 	return nil
 }
