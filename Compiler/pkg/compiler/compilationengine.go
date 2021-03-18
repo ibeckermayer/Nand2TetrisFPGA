@@ -26,32 +26,43 @@ func SyntaxError(err error) error {
 // CompilationEngine effects the actual compilation output.
 // Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
 type CompilationEngine struct {
-	JackFilePath string         // The name of the .jack input file to be compiled.
+	jackFilePath string         // The name of the .jack input file to be compiled.
 	jt           *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	outputFile   *os.File       // The output file
 	xmlEnc       *xml.Encoder   // The xml encoder for testing
 }
 
-// Run runs the compiler on ce.JackFilePath
-func (ce *CompilationEngine) Run() error {
+// New takes in a path to a jack file and returns an initialized CompilationEngine
+// ready to compile it.
+func New(jackFilePath string) (*CompilationEngine, error) {
+	ce := &CompilationEngine{
+		jackFilePath: jackFilePath,
+	}
+
 	// Initialize the ce's corresponding JackTokenizer
-	jt, err := NewJackTokenizer(ce.JackFilePath)
+	jt, err := NewJackTokenizer(ce.jackFilePath)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ce.jt = jt
 
 	// Create the output file
-	outputFile, err := os.Create(fmt.Sprintf("%v_out.xml", ce.JackFilePath[0:len(ce.JackFilePath)-len(".jack")]))
+	outputFile, err := os.Create(fmt.Sprintf("%v_out.xml", ce.jackFilePath[0:len(ce.jackFilePath)-len(".jack")]))
 	if err != nil {
-		return err
+		return nil, err
 	}
 	ce.outputFile = outputFile
-	defer ce.outputFile.Close()
 
 	// Create xml encoder
 	ce.xmlEnc = xml.NewEncoder(outputFile)
 	ce.xmlEnc.Indent("", "  ")
+
+	return ce, nil
+}
+
+// Run runs the compiler on ce.jackFilePath
+func (ce *CompilationEngine) Run() error {
+	defer ce.outputFile.Close()
 	defer ce.xmlEnc.Flush()
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
