@@ -5,6 +5,8 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/ibeckermayer/Nand2TetrisFPGA/Compiler/pkg/compiler"
 )
 
 // isJack determines whether a string ends in ".jack" or not
@@ -26,6 +28,9 @@ func jackFilter(ss []string) (ret []string) {
 func main() {
 	// First argument should be .jack file or directory of .jack files. Currently
 	// do not support multiple directory builds.
+	if len(os.Args) < 2 {
+		panic("program requires the first argument be a path to .jack file or directory that contains at least one .jack file")
+	}
 	toCompile := os.Args[1]
 	var files []string
 
@@ -48,8 +53,11 @@ func main() {
 	}
 
 	// for each jack file
-	for _, file := range files {
-		fmt.Println(file)
+	for _, filePath := range files {
+		ce := &compiler.CompilationEngine{JackFilePath: filePath}
+		err := ce.Run()
+		if err != nil {
+			panic(err)
+		}
 	}
-
 }
