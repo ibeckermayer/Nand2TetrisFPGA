@@ -99,6 +99,7 @@ func (s *SymbolTable) VarCount(kind Kind) uint {
 	return s.varCount[kind]
 }
 
+// Returns the kind of the named identifier in the given scope
 func (s *SymbolTable) KindOf(name string) Kind {
 	var kind Kind
 	subroutineTable := *s.table[KIND_ARG]
@@ -118,4 +119,45 @@ func (s *SymbolTable) KindOf(name string) Kind {
 
 	// If nothing was found in either table return KIND_NONE
 	return KIND_NONE
+}
+
+// Returns the type of the named identifier in the given scope
+func (s *SymbolTable) TypeOf(name string) (string, error) {
+	var type_ string
+	subroutineTable := *s.table[KIND_ARG]
+	classTable := *s.table[KIND_STATIC]
+
+	// Check subroutine scope first
+	type_ = subroutineTable[name].Type
+	if type_ != "" {
+		return type_, nil
+	}
+
+	// If nothing was found, check class scope
+	type_ = classTable[name].Type
+	if type_ != "" {
+		return type_, nil
+	}
+
+	return "", fmt.Errorf("identifier %v was not found in any scope", name)
+}
+
+// IndexOf returns the index assigned to the named identifier
+func (s *SymbolTable) IndexOf(name string) (uint, error) {
+	subroutineTable := *s.table[KIND_ARG]
+	classTable := *s.table[KIND_STATIC]
+
+	// Check subroutine scope first
+	entry, ok := subroutineTable[name]
+	if ok {
+		return entry.Index, nil
+	}
+
+	// If nothing was found, check class scope
+	entry, ok = classTable[name]
+	if ok {
+		return entry.Index, nil
+	}
+
+	return 0, fmt.Errorf("identifier %v was not found in any scope", name)
 }
