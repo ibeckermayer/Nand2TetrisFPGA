@@ -32,9 +32,9 @@ type CompilationEngine struct {
 	xmlEnc       *xml.Encoder   // The xml encoder for testing
 }
 
-// New takes in a path to a jack file and returns an initialized CompilationEngine
+// NewCompilationEngine takes in a path to a jack file and returns an initialized CompilationEngine
 // ready to compile it.
-func New(jackFilePath string) (*CompilationEngine, error) {
+func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 	ce := &CompilationEngine{
 		jackFilePath: jackFilePath,
 	}

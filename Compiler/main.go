@@ -54,7 +54,7 @@ func main() {
 
 	// for each jack file
 	for _, filePath := range files {
-		ce, err := compiler.New(filePath)
+		ce, err := compiler.NewCompilationEngine(filePath)
 		err = ce.Run()
 		if err != nil {
 			panic(err)

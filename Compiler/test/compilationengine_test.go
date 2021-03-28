@@ -10,7 +10,7 @@ import (
 )
 
 func runCeTest(jackFilePath string, t *testing.T) {
-	ce, err := compiler.New(jackFilePath)
+	ce, err := compiler.NewCompilationEngine(jackFilePath)
 	if err != nil {
 		t.Fatal(err)
 	}
