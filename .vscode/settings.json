@@ -10,5 +10,5 @@
     "stdio.h": "c",
     "symboltable.h": "c"
   },
-  "python.pythonPath": "./venv/bin/python"
+  "python.pythonPath": "/usr/local/bin/python3"
 }
