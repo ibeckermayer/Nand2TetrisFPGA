@@ -30,10 +30,13 @@ type CompilationEngine struct {
 	jt           *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	outputFile   *os.File       // The output file
 	xmlEnc       *xml.Encoder   // The xml encoder for testing
+	st           *SymbolTable   // The symbol table
+	className    string         // The class name being compiled. Set at compileClass
 }
 
 // NewCompilationEngine takes in a path to a jack file and returns an initialized CompilationEngine
-// ready to compile it.
+// ready to compile it. Since we assume one jack class per file, we will assume one compilation engine
+// per class.
 func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 	ce := &CompilationEngine{
 		jackFilePath: jackFilePath,
@@ -56,6 +59,10 @@ func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 	// Create xml encoder
 	ce.xmlEnc = xml.NewEncoder(outputFile)
 	ce.xmlEnc.Indent("", "  ")
+
+	// Create the symbol table
+	st := NewSymbolTable()
+	ce.st = st
 
 	return ce, nil
 }
@@ -103,11 +110,8 @@ func (ce *CompilationEngine) advance() error {
 // Assumes the first token has already been consumed (should be 'class').
 // 'class' className '{' classVarDec* subroutineDec* '}'
 func (ce *CompilationEngine) compileClass() error {
-	ce.openXMLTag("class")        // <class>
-	defer ce.closeXMLTag("class") // defer closing </class>
-
 	// Check that first token is "class"
-	if err := ce.compileKeyword("class"); err != nil {
+	if err := ce.checkForKeyword("class"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -116,18 +120,20 @@ func (ce *CompilationEngine) compileClass() error {
 	}
 
 	// Check that next token is an identifier
-	if _, err := ce.jt.Identifier(); err != nil {
+	className, err := ce.jt.Identifier()
+	if err != nil {
 		return err
 	}
 
-	ce.marshaljt() // <identifier> ClassName </identifier>
+	// set global className for function naming
+	ce.className = className
 
 	if err := ce.advance(); err != nil {
 		return err
 	}
 
 	// Check that next token is "{"
-	if err := ce.compileSymbol("{"); err != nil {
+	if err := ce.checkForSymbol("{"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -164,12 +170,11 @@ func (ce *CompilationEngine) compileClass() error {
 		if err := ce.advance(); err != nil {
 			return err
 		}
-
 	}
 
 	// Check that next token is "}"
 	// The previous loop should have called Advance() for this symbol
-	if err := ce.compileSymbol("}"); err != nil {
+	if err := ce.checkForSymbol("}"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -177,62 +182,44 @@ func (ce *CompilationEngine) compileClass() error {
 }
 
 // 'void | 'int' | 'char' | 'boolean' | className
-func (ce *CompilationEngine) compileVoidOrType() error {
-	if kw, err := ce.jt.KeyWord(); kw == "void" && err == nil {
-		ce.marshaljt() // <keyword> void </keyword>
-		return nil
+func (ce *CompilationEngine) getVoidOrType() (string, error) {
+	if kw, err := ce.jt.KeyWord(); kw == "void" {
+		return kw, err
 	}
-	err := ce.compileType()
-	if err != nil {
-		// see errString in compileType()
-		return SyntaxError(fmt.Errorf("%v or \"void\"", err.Error()))
-	}
-	return err
+	return ce.getType()
 }
 
 // 'int' | 'char' | 'boolean' | className
-func (ce *CompilationEngine) compileType() error {
+// check for a type and return the string
+func (ce *CompilationEngine) getType() (string, error) {
 	var errString string = "expected a type: %v className or %v \"int\" or \"char\" or \"boolean\""
 
 	switch ce.jt.TokenType() {
 	case keyWord:
 		kw, _ := ce.jt.KeyWord()
 		if !(kw == "int" || kw == "char" || kw == "boolean") {
-			return SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+			return "", SyntaxError(fmt.Errorf(errString, identifier, keyWord))
 		}
-		// Found "int" or "char" or "boolean"
-		ce.marshaljt() // <keyword> * </keyword>
-		return nil
+		return kw, nil
 	case identifier:
-		ce.marshaljt() // <identifier> className </identifier>
-		return nil
+		id, _ := ce.jt.Identifier()
+		return id, nil
 	default:
-		return SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+		return "", SyntaxError(fmt.Errorf(errString, identifier, keyWord))
 	}
 }
 
 // ('static' | 'field') type varName (',' varName)* ';'
 func (ce *CompilationEngine) compileClassVarDec() error {
-	ce.openXMLTag("classVarDec")        // <classVarDec>
-	defer ce.closeXMLTag("classVarDec") //</classVarDec>
+	// extract "static" or "field"
+	kind, _ := ce.jt.KeyWord()
 
-	// Confirm that first token is "static" or "field"
-	if kw, err := ce.jt.KeyWord(); !(kw == "static" || kw == "field") {
-		if err != nil {
-			return SyntaxError(err)
-		}
-		return SyntaxError(fmt.Errorf("expected %v \"static\" or \"field\"", keyWord))
-	}
-
-	// found "static" or "field"
-	ce.marshaljt() // <keyword> * </keyword>
-
+	// get type
 	if err := ce.advance(); err != nil {
 		return err
 	}
-
-	// try to compile a type
-	if err := ce.compileType(); err != nil {
+	type_, err := ce.getType()
+	if err != nil {
 		return err
 	}
 
@@ -240,9 +227,13 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	if err := ce.advance(); err != nil {
 		return err
 	}
-	if err := ce.compileVarName(); err != nil {
+	name, err := ce.getVarName()
+	if err != nil {
 		return SyntaxError(err)
 	}
+
+	// Define a new entry in the symbol table
+	ce.st.Define(name, type_, Kind(kind))
 
 	// Check for a comma separated list of more varNames
 	if err := ce.advance(); err != nil {
@@ -252,15 +243,17 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 		if err != nil {
 			return SyntaxError(err)
 		}
-		ce.marshaljt() // <symbol> , </symbol>
 
-		// Check for varName
+		// Get name
 		if err := ce.advance(); err != nil {
 			return err
 		}
-		if err := ce.compileVarName(); err != nil {
+		name, err := ce.getVarName()
+		if err != nil {
 			return SyntaxError(err)
 		}
+
+		ce.st.Define(name, type_, Kind(kind))
 
 		if err := ce.advance(); err != nil {
 			return err
@@ -268,7 +261,7 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 	}
 
 	// Should wind up at a ";"
-	if err := ce.compileSymbol(";"); err != nil {
+	if err := ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -277,8 +270,8 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 
 // ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
 func (ce *CompilationEngine) compileSubroutine() error {
-	ce.openXMLTag("subroutineDec")        // <subroutineDec>
-	defer ce.closeXMLTag("subroutineDec") //</subroutineDec>
+	// Clear the subroutine table
+	ce.st.StartSubroutine()
 
 	// Confirm that current token is "constructor" or "function" or "method"
 	if kw, err := ce.jt.KeyWord(); !(kw == "constructor" || kw == "function" || kw == "method") {
@@ -288,29 +281,24 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return SyntaxError(fmt.Errorf("expected %v \"constructor\" or \"function\" or \"method\"", keyWord))
 	}
 
-	// found "constructor" or "function" or "method"
-	ce.marshaljt() // <keyword> * </keyword>
-
 	if err := ce.advance(); err != nil {
 		return err
 	}
 
-	// Compile a ('void' | type)
-	if err := ce.compileVoidOrType(); err != nil {
+	// Get a ('void' | type)
+	_, err := ce.getVoidOrType()
+	if err != nil {
 		return err
 	}
 
+	// Check for subroutineName
 	if err := ce.advance(); err != nil {
 		return err
 	}
-
-	// check for subroutineName
-	_, err := ce.jt.Identifier()
+	_, err = ce.jt.Identifier()
 	if err != nil {
 		return SyntaxError(err)
 	}
-
-	ce.marshaljt() // <identifier> subroutineName </identifier>
 
 	// Eat the subroutineName
 	if err := ce.advance(); err != nil {
@@ -330,17 +318,13 @@ func (ce *CompilationEngine) compileSubroutine() error {
 
 // '{' varDec* statements '}'
 func (ce *CompilationEngine) compileSubroutineBody() error {
-	ce.openXMLTag("subroutineBody")        // <subroutineBody>
-	defer ce.closeXMLTag("subroutineBody") //</subroutineBody>
-
 	var err error
 
 	// Eat what should be a "{"
 	if err = ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-
-	if err = ce.compileSymbol("{"); err != nil {
+	if err = ce.checkForSymbol("{"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -364,19 +348,21 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 		return SyntaxError(err)
 	}
 
-	if err = ce.compileSymbol("}"); err != nil {
+	if err = ce.checkForSymbol("}"); err != nil {
 		return SyntaxError(err)
 	}
 
 	return nil
 }
 
-func (ce *CompilationEngine) compileVarName() error {
-	// Next should be a varName
-	if ce.jt.TokenType() != identifier {
-		return SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
+// checks that token is identifier and returns it, or a error
+func (ce *CompilationEngine) getVarName() (string, error) {
+	id, err := ce.jt.Identifier()
+	if err != nil {
+		return "", SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
 	}
-	return ce.marshaljt() // <identifier> varName </identifier>
+	return id, nil
+
 }
 
 func (ce *CompilationEngine) compileIdentifier() error {
@@ -387,7 +373,7 @@ func (ce *CompilationEngine) compileIdentifier() error {
 	return ce.marshaljt() // <identifier> varName </identifier>
 }
 
-func (ce *CompilationEngine) compileSymbol(sym string) error {
+func (ce *CompilationEngine) checkForSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
 			return SyntaxError(err)
@@ -395,11 +381,10 @@ func (ce *CompilationEngine) compileSymbol(sym string) error {
 		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", symbol, sym))
 	}
 
-	ce.marshaljt() // <symbol> sym </symbol>
 	return nil
 }
 
-func (ce *CompilationEngine) compileKeyword(kw string) error {
+func (ce *CompilationEngine) checkForKeyword(kw string) error {
 	if k, err := ce.jt.KeyWord(); k != kw {
 		if err != nil {
 			return SyntaxError(err)
@@ -407,36 +392,32 @@ func (ce *CompilationEngine) compileKeyword(kw string) error {
 		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", keyWord, kw))
 	}
 
-	ce.marshaljt() // <symbol> kw </symbol>
 	return nil
 }
 
 // '(' ((type varName)(',' type varName)*)? ')'
 func (ce *CompilationEngine) compileParameterList() error {
-	if err := ce.compileSymbol("("); err != nil {
+	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
 		return err
 	}
 
-	ce.openXMLTag("parameterList") // <parameterList>
-
 	// While we have yet to hit the closing ")"
 	for sym, _ := ce.jt.Symbol(); sym != ")"; sym, _ = ce.jt.Symbol() {
 		// First token should be a type
-		err := ce.compileType()
+		type_, err := ce.getType()
 		if err != nil {
 			return err
 		}
 
-		// Eat the type token
+		// Next should be a varName
 		if err := ce.advance(); err != nil {
 			return err
 		}
-
-		// Next should be a varName
-		if err := ce.compileVarName(); err != nil {
+		name, err := ce.getVarName()
+		if err != nil {
 			return SyntaxError(err)
 		}
 
@@ -445,51 +426,58 @@ func (ce *CompilationEngine) compileParameterList() error {
 			return err
 		}
 
+		// Define the parameter in the symbol table
+		ce.st.Define(name, type_, KIND_ARG)
+
 		// Now we should be at either a "," or the closing ")"
-		sym, err := ce.jt.Symbol()
-		if err != nil || !(sym == "," || sym == ")") {
-			return SyntaxError(fmt.Errorf("Expected either a \",\" or a \")\""))
-		}
-		if sym == "," {
-			ce.compileSymbol(sym)
+		if err := ce.checkForSymbol(","); err == nil {
+			// if we're at the ",", advance and run through another round of the loop
 			if err := ce.advance(); err != nil {
-				return err
+				return SyntaxError(err)
+			}
+			// but first check that we didn't bump immediately into a ")", which would be invalid
+			if err := ce.checkForSymbol(")"); err == nil {
+				return SyntaxError(fmt.Errorf("invalid syntax \",)\""))
 			}
 		}
-		// Else we were at a ")", let the loop break
+		// Else we were at a ")", let the loop break and check for that
 	}
 
-	ce.closeXMLTag("parameterList") // </parameterList>
 	// Now we should be at the closing ")"
-	ce.compileSymbol(")")
+	if err := ce.checkForSymbol(")"); err != nil {
+		return SyntaxError(err)
+	}
+
 	return nil
 }
 
 // 'var' type varName (',' varName)* ';'
 func (ce *CompilationEngine) compileVarDec() error {
-	ce.openXMLTag("varDec")
-	defer ce.closeXMLTag("varDec")
-
-	// compile var
-	if err := ce.compileKeyword("var"); err != nil {
+	// check for var
+	if err := ce.checkForKeyword("var"); err != nil {
 		return SyntaxError(err)
 	}
 
-	// Advance and compile type
+	// Advance and get type
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileType(); err != nil {
+	type_, err := ce.getType()
+	if err != nil {
 		return err
 	}
 
-	// Advance and compile varName
+	// Advance and get varName
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileVarName(); err != nil {
+	name, err := ce.getVarName()
+	if err != nil {
 		return SyntaxError(err)
 	}
+
+	// Add this var to symbol table
+	ce.st.Define(name, type_, KIND_VAR)
 
 	// Now advance again and see if there's a (',' varName)*
 	if err := ce.advance(); err != nil {
@@ -497,17 +485,17 @@ func (ce *CompilationEngine) compileVarDec() error {
 	}
 	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
 		// (',' varName)*
-		if err := ce.compileSymbol(","); err != nil {
-			return SyntaxError(err)
-		}
-
 		// Advance and check for "varName"
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
-		if err := ce.compileVarName(); err != nil {
+		name, err := ce.getVarName()
+		if err != nil {
 			return SyntaxError(err)
 		}
+
+		// Add this var to symbol table as well
+		ce.st.Define(name, type_, KIND_ARG)
 
 		// Advance to either the next "," and repeat the loop, or break and check for ";"
 		if err := ce.advance(); err != nil {
@@ -516,7 +504,7 @@ func (ce *CompilationEngine) compileVarDec() error {
 	}
 
 	// Check for ";"
-	if err := ce.compileSymbol(";"); err != nil {
+	if err := ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -533,9 +521,6 @@ func isSatementKeyword(kw string) bool {
 // This function exits after a loop hits a non-statement-starting keyword, so the caller should expect to
 // already be at the next token.
 func (ce *CompilationEngine) compileStatements() error {
-	ce.openXMLTag("statements")
-	defer ce.closeXMLTag("statements")
-
 	for kw, err := ce.jt.KeyWord(); isSatementKeyword(kw); kw, err = ce.jt.KeyWord() {
 		if err != nil {
 			return SyntaxError(err)
@@ -590,7 +575,7 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 	}
 	if sym == "." {
 		// ".", so compile and eat it and compile its subsequent subroutineName
-		if err := ce.compileSymbol("."); err != nil {
+		if err := ce.checkForSymbol("."); err != nil {
 			return SyntaxError(err)
 		}
 		if err := ce.advance(); err != nil {
@@ -610,13 +595,13 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 		}
 	}
 
-	if err := ce.compileSymbol("("); err != nil {
+	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.compileExpressionList(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileSymbol(")"); err != nil {
+	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -629,7 +614,7 @@ func (ce *CompilationEngine) compileDo() error {
 	ce.openXMLTag("doStatement")
 	defer ce.closeXMLTag("doStatement")
 
-	if err := ce.compileKeyword("do"); err != nil {
+	if err := ce.checkForKeyword("do"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -642,7 +627,7 @@ func (ce *CompilationEngine) compileDo() error {
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileSymbol(";"); err != nil {
+	if err := ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 	// eat own final character
@@ -655,19 +640,18 @@ func (ce *CompilationEngine) compileDo() error {
 // 'let' varName ('[' expression ']')? '=' expression ';'
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileLet() error {
-	ce.openXMLTag("letStatement")
-	defer ce.closeXMLTag("letStatement")
 	var err error
 
-	if err = ce.compileKeyword("let"); err != nil {
+	if err = ce.checkForKeyword("let"); err != nil {
 		return SyntaxError(err)
 	}
 
-	// advance and compile varName
+	// advance and get varName
 	if err = ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err = ce.compileVarName(); err != nil {
+	_, err = ce.getVarName()
+	if err != nil {
 		return SyntaxError(err)
 	}
 
@@ -680,7 +664,7 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 	if sym == "[" {
-		if err := ce.compileSymbol("["); err != nil {
+		if err := ce.checkForSymbol("["); err != nil {
 			return SyntaxError(err)
 		}
 		// eat the '[' and compile expression
@@ -690,7 +674,7 @@ func (ce *CompilationEngine) compileLet() error {
 		if err = ce.compileExpression(); err != nil {
 			return SyntaxError(err)
 		}
-		if err := ce.compileSymbol("]"); err != nil {
+		if err := ce.checkForSymbol("]"); err != nil {
 			return SyntaxError(err)
 		}
 		if err = ce.advance(); err != nil {
@@ -699,7 +683,7 @@ func (ce *CompilationEngine) compileLet() error {
 	}
 
 	// demand, compile, and eat '='
-	if err = ce.compileSymbol("="); err != nil {
+	if err = ce.checkForSymbol("="); err != nil {
 		return SyntaxError(err)
 	}
 	if err = ce.advance(); err != nil {
@@ -711,7 +695,7 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 
-	if err = ce.compileSymbol(";"); err != nil {
+	if err = ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -728,14 +712,14 @@ func (ce *CompilationEngine) compileWhile() error {
 	ce.openXMLTag("whileStatement")
 	defer ce.closeXMLTag("whileStatement")
 
-	if err := ce.compileKeyword("while"); err != nil {
+	if err := ce.checkForKeyword("while"); err != nil {
 		return SyntaxError(err)
 	}
 
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileSymbol("("); err != nil {
+	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -746,14 +730,14 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
-	if err := ce.compileSymbol(")"); err != nil {
+	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
 	}
 
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileSymbol("{"); err != nil {
+	if err := ce.checkForSymbol("{"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -764,7 +748,7 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
-	if err := ce.compileSymbol("}"); err != nil {
+	if err := ce.checkForSymbol("}"); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
@@ -780,7 +764,7 @@ func (ce *CompilationEngine) compileReturn() error {
 	ce.openXMLTag("returnStatement")
 	defer ce.closeXMLTag("returnStatement")
 
-	if err := ce.compileKeyword("return"); err != nil {
+	if err := ce.checkForKeyword("return"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -797,7 +781,7 @@ func (ce *CompilationEngine) compileReturn() error {
 	}
 
 	// now compile the ';'
-	if err := ce.compileSymbol(";"); err != nil {
+	if err := ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -819,7 +803,7 @@ func (ce *CompilationEngine) compileIf() error {
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
-		if err := ce.compileSymbol("{"); err != nil {
+		if err := ce.checkForSymbol("{"); err != nil {
 			return SyntaxError(err)
 		}
 
@@ -831,7 +815,7 @@ func (ce *CompilationEngine) compileIf() error {
 		}
 
 		// compileStatements loops us to next token so no need to call advance()
-		if err := ce.compileSymbol("}"); err != nil {
+		if err := ce.checkForSymbol("}"); err != nil {
 			return SyntaxError(err)
 		}
 		return nil
@@ -840,14 +824,14 @@ func (ce *CompilationEngine) compileIf() error {
 	ce.openXMLTag("ifStatement")
 	defer ce.closeXMLTag("ifStatement")
 
-	if err := ce.compileKeyword("if"); err != nil {
+	if err := ce.checkForKeyword("if"); err != nil {
 		return SyntaxError(err)
 	}
 
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileSymbol("("); err != nil {
+	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
@@ -859,7 +843,7 @@ func (ce *CompilationEngine) compileIf() error {
 	}
 
 	// compileExpression loops us to next token so no need to call advance()
-	if err := ce.compileSymbol(")"); err != nil {
+	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
 	}
 
@@ -873,7 +857,7 @@ func (ce *CompilationEngine) compileIf() error {
 	}
 	if ce.jt.TokenType() == keyWord {
 		if kw, _ := ce.jt.KeyWord(); kw == "else" {
-			if err := ce.compileKeyword("else"); err != nil {
+			if err := ce.checkForKeyword("else"); err != nil {
 				return SyntaxError(err)
 			}
 
@@ -913,7 +897,7 @@ func (ce *CompilationEngine) compileExpression() error {
 	}
 
 	for sym, _ := ce.jt.Symbol(); isOp(sym); sym, _ = ce.jt.Symbol() {
-		if err := ce.compileSymbol(sym); err != nil {
+		if err := ce.checkForSymbol(sym); err != nil {
 			return SyntaxError(err)
 		}
 		if err := ce.advance(); err != nil {
@@ -969,7 +953,7 @@ func (ce *CompilationEngine) compileTerm() error {
 			return SyntaxError(err)
 		}
 		if sym == "(" {
-			if err := ce.compileSymbol("("); err != nil {
+			if err := ce.checkForSymbol("("); err != nil {
 				return SyntaxError(err)
 			}
 			if err := ce.advance(); err != nil {
@@ -978,11 +962,11 @@ func (ce *CompilationEngine) compileTerm() error {
 			if err := ce.compileExpression(); err != nil {
 				return SyntaxError(err)
 			}
-			if err = ce.compileSymbol(")"); err != nil {
+			if err = ce.checkForSymbol(")"); err != nil {
 				return SyntaxError(err)
 			}
 		} else if sym == "-" {
-			if err := ce.compileSymbol("-"); err != nil {
+			if err := ce.checkForSymbol("-"); err != nil {
 				return SyntaxError(err)
 			}
 			if err := ce.advance(); err != nil {
@@ -992,7 +976,7 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else if sym == "~" {
-			if err := ce.compileSymbol("~"); err != nil {
+			if err := ce.checkForSymbol("~"); err != nil {
 				return SyntaxError(err)
 			}
 			if err := ce.advance(); err != nil {
@@ -1017,13 +1001,14 @@ func (ce *CompilationEngine) compileTerm() error {
 		if peeked == '.' || peeked == '(' {
 			return ce.compileSubroutineCall()
 		} else if peeked == '[' {
-			if err := ce.compileVarName(); err != nil {
+			_, err = ce.getVarName()
+			if err != nil {
 				return SyntaxError(err)
 			}
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
-			if err := ce.compileSymbol("["); err != nil {
+			if err := ce.checkForSymbol("["); err != nil {
 				return SyntaxError(err)
 			}
 			if err := ce.advance(); err != nil {
@@ -1032,11 +1017,12 @@ func (ce *CompilationEngine) compileTerm() error {
 			if err := ce.compileExpression(); err != nil {
 				return SyntaxError(err)
 			}
-			if err := ce.compileSymbol("]"); err != nil {
+			if err := ce.checkForSymbol("]"); err != nil {
 				return SyntaxError(err)
 			}
 		} else {
-			return ce.compileVarName()
+			_, err := ce.getVarName()
+			return err
 		}
 	} else {
 		return SyntaxError(fmt.Errorf("unknown error"))
@@ -1067,7 +1053,7 @@ func (ce *CompilationEngine) compileExpressionList() error {
 		return SyntaxError(err)
 	}
 	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
-		ce.compileSymbol(sym) // compile ","
+		ce.checkForSymbol(sym) // compile ","
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
