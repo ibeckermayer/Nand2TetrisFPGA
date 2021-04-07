@@ -1,13 +1,11 @@
 package compiler
 
 import (
-	"encoding/xml"
 	"errors"
 	"fmt"
 	"log"
 	"os"
 	"runtime"
-	"strconv"
 )
 
 //SyntaxError logs the function name, file, and line number
@@ -29,7 +27,6 @@ type CompilationEngine struct {
 	jackFilePath string         // The name of the .jack input file to be compiled.
 	jt           *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	outputFile   *os.File       // The output file
-	xmlEnc       *xml.Encoder   // The xml encoder for testing
 	st           *SymbolTable   // The symbol table
 	className    string         // The class name being compiled. Set at compileClass
 }
@@ -50,15 +47,11 @@ func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 	ce.jt = jt
 
 	// Create the output file
-	outputFile, err := os.Create(fmt.Sprintf("%v_out.xml", ce.jackFilePath[0:len(ce.jackFilePath)-len(".jack")]))
+	outputFile, err := os.Create(fmt.Sprintf("%v.vm", ce.jackFilePath[0:len(ce.jackFilePath)-len(".jack")]))
 	if err != nil {
 		return nil, err
 	}
 	ce.outputFile = outputFile
-
-	// Create xml encoder
-	ce.xmlEnc = xml.NewEncoder(outputFile)
-	ce.xmlEnc.Indent("", "  ")
 
 	// Create the symbol table
 	st := NewSymbolTable()
@@ -70,33 +63,12 @@ func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 // Run runs the compiler on ce.jackFilePath
 func (ce *CompilationEngine) Run() error {
 	defer ce.outputFile.Close()
-	defer ce.xmlEnc.Flush()
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
 	if err := ce.advance(); err != nil {
 		return err
 	}
 	return ce.compileClass()
-}
-
-// Shorthand for opening an xml tag
-func (ce *CompilationEngine) openXMLTag(tag string) error {
-	return ce.xmlEnc.EncodeToken(xml.StartElement{Name: xml.Name{Space: "", Local: tag}, Attr: []xml.Attr{}})
-}
-
-// Shorthand for writing raw data in an XML tag, prefixed and postfixed with a space character
-func (ce *CompilationEngine) writeXMLData(data string) error {
-	return ce.xmlEnc.EncodeToken(xml.CharData(fmt.Sprintf(" %v ", data)))
-}
-
-// Shorthand for closing an xml tag
-func (ce *CompilationEngine) closeXMLTag(tag string) error {
-	return ce.xmlEnc.EncodeToken(xml.EndElement{Name: xml.Name{Space: "", Local: tag}})
-}
-
-// Shorthand for calling jt.MarshalXML to take advantage of already existing xml encoding logic
-func (ce *CompilationEngine) marshaljt() error {
-	return ce.jt.MarshalXML(ce.xmlEnc, xml.StartElement{Name: xml.Name{Space: "not used", Local: "not used"}, Attr: []xml.Attr{}})
 }
 
 // advance throws an error if there are no more tokens, else it returns ce.jt.Advance()
@@ -273,13 +245,16 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	// Clear the subroutine table
 	ce.st.StartSubroutine()
 
-	// Confirm that current token is "constructor" or "function" or "method"
+	// Calling function checked that current token is "constructor" or "function" or "method"
 	if kw, err := ce.jt.KeyWord(); !(kw == "constructor" || kw == "function" || kw == "method") {
 		if err != nil {
 			return SyntaxError(err)
 		}
 		return SyntaxError(fmt.Errorf("expected %v \"constructor\" or \"function\" or \"method\"", keyWord))
 	}
+
+	// begin to declare the function
+	ce.outputFile.WriteString(fmt.Sprintf("function %v.", ce.className))
 
 	if err := ce.advance(); err != nil {
 		return err
@@ -295,10 +270,11 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	if err := ce.advance(); err != nil {
 		return err
 	}
-	_, err = ce.jt.Identifier()
+	subroutineName, err := ce.jt.Identifier()
 	if err != nil {
 		return SyntaxError(err)
 	}
+	ce.outputFile.WriteString(fmt.Sprintf("%v ", subroutineName))
 
 	// Eat the subroutineName
 	if err := ce.advance(); err != nil {
@@ -309,16 +285,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return SyntaxError(err)
 	}
 
-	if err := ce.compileSubroutineBody(); err != nil {
-		return SyntaxError(err)
-	}
-
-	return nil
-}
-
-// '{' varDec* statements '}'
-func (ce *CompilationEngine) compileSubroutineBody() error {
-	var err error
+	// subroutineBody: '{' varDec* statements '}'
 
 	// Eat what should be a "{"
 	if err = ce.advance(); err != nil {
@@ -327,12 +294,36 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 	if err = ce.checkForSymbol("{"); err != nil {
 		return SyntaxError(err)
 	}
-
 	// Eat the "{"
 	if err = ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
 
+	// varDec*
+	if err := ce.compileVarDecs(); err != nil {
+		return SyntaxError(err)
+	}
+
+	// now that all the vars have been declared, we know how to declare the vm code function
+	ce.outputFile.WriteString(fmt.Sprintf("%v\n", ce.st.VarCount(KIND_VAR)))
+
+	// statements
+	if err = ce.compileStatements(); err != nil {
+		return SyntaxError(err)
+	}
+
+	if err = ce.checkForSymbol("}"); err != nil {
+		return SyntaxError(err)
+	}
+
+	return nil
+}
+
+// varDec*
+// compileVarDecs compiles all the variable declarations, so that when it returns a call to
+// ce.st.VarCount(KIND_VAR) will give you the number of local variables for the current subroutine
+func (ce *CompilationEngine) compileVarDecs() error {
+	var err error
 	// varDec*
 	for kw, _ := ce.jt.KeyWord(); kw == "var"; kw, _ = ce.jt.KeyWord() {
 		if err = ce.compileVarDec(); err != nil {
@@ -343,15 +334,6 @@ func (ce *CompilationEngine) compileSubroutineBody() error {
 			return SyntaxError(err)
 		}
 	}
-
-	if err = ce.compileStatements(); err != nil {
-		return SyntaxError(err)
-	}
-
-	if err = ce.checkForSymbol("}"); err != nil {
-		return SyntaxError(err)
-	}
-
 	return nil
 }
 
@@ -497,7 +479,7 @@ func (ce *CompilationEngine) compileVarDec() error {
 		}
 
 		// Add this var to symbol table as well
-		ce.st.Define(name, type_, KIND_ARG)
+		ce.st.Define(name, type_, KIND_VAR)
 
 		// Advance to either the next "," and repeat the loop, or break and check for ";"
 		if err := ce.advance(); err != nil {
@@ -613,9 +595,6 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 // 'do' subroutineCall ';'
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileDo() error {
-	ce.openXMLTag("doStatement")
-	defer ce.closeXMLTag("doStatement")
-
 	if err := ce.checkForKeyword("do"); err != nil {
 		return SyntaxError(err)
 	}
@@ -711,9 +690,6 @@ func (ce *CompilationEngine) compileLet() error {
 // 'while '(' expression ')' '{' statements '}'
 // eats its own final token before returning, so calling function can expect to already be on the next token
 func (ce *CompilationEngine) compileWhile() error {
-	ce.openXMLTag("whileStatement")
-	defer ce.closeXMLTag("whileStatement")
-
 	if err := ce.checkForKeyword("while"); err != nil {
 		return SyntaxError(err)
 	}
@@ -820,9 +796,6 @@ func (ce *CompilationEngine) compileIf() error {
 		return nil
 	}
 
-	ce.openXMLTag("ifStatement")
-	defer ce.closeXMLTag("ifStatement")
-
 	if err := ce.checkForKeyword("if"); err != nil {
 		return SyntaxError(err)
 	}
@@ -915,21 +888,15 @@ func (ce *CompilationEngine) compileExpression() error {
 // '(' expression ')' | unaryOp term
 func (ce *CompilationEngine) compileTerm() error {
 	if ce.jt.TokenType() == intConst {
-		ce.openXMLTag("integerConstant")
-		ic, err := ce.jt.IntVal()
+		_, err := ce.jt.IntVal()
 		if err != nil {
 			return SyntaxError(err)
 		}
-		ce.writeXMLData(strconv.Itoa(ic))
-		ce.closeXMLTag("integerConstant")
 	} else if ce.jt.TokenType() == strConst {
-		ce.openXMLTag("stringConstant")
-		sc, err := ce.jt.StringVal()
+		_, err := ce.jt.StringVal()
 		if err != nil {
 			return SyntaxError(err)
 		}
-		ce.writeXMLData(sc)
-		ce.closeXMLTag("stringConstant")
 	} else if ce.jt.TokenType() == keyWord {
 		kw, err := ce.jt.KeyWord()
 		if err != nil {
@@ -938,7 +905,6 @@ func (ce *CompilationEngine) compileTerm() error {
 		if !(kw == "true" || kw == "false" || kw == "null" || kw == "this") {
 			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
-		return ce.marshaljt()
 	} else if ce.jt.TokenType() == symbol {
 		// '(' expression ')' | unaryOp term
 		sym, err := ce.jt.Symbol()
