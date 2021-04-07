@@ -365,14 +365,16 @@ func (ce *CompilationEngine) getVarName() (string, error) {
 
 }
 
-func (ce *CompilationEngine) compileIdentifier() error {
+// checkForIdentifier checks that the current token is an identifier
+func (ce *CompilationEngine) checkForIdentifier() error {
 	// Next should be a varName
 	if ce.jt.TokenType() != identifier {
 		return SyntaxError(fmt.Errorf("Expected an %v", identifier))
 	}
-	return ce.marshaljt() // <identifier> varName </identifier>
+	return nil
 }
 
+// checkForSymbol checks that the passed symbol is currently being parsed
 func (ce *CompilationEngine) checkForSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
@@ -561,7 +563,7 @@ func (ce *CompilationEngine) compileStatements() error {
 // subroutineName '(' expressionList ')' |
 // (className | varName) '.' subroutineName '(' expressionList ')'
 func (ce *CompilationEngine) compileSubroutineCall() error {
-	if err := ce.compileIdentifier(); err != nil {
+	if err := ce.checkForIdentifier(); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
@@ -582,7 +584,7 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 			return SyntaxError(err)
 		}
 		// subroutineName
-		if err := ce.compileIdentifier(); err != nil {
+		if err := ce.checkForIdentifier(); err != nil {
 			return SyntaxError(err)
 		}
 		// advance and set external scope's sym variable to the next sym, which ought to be a "("
@@ -761,9 +763,6 @@ func (ce *CompilationEngine) compileWhile() error {
 // 'return' expression? ';'
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileReturn() error {
-	ce.openXMLTag("returnStatement")
-	defer ce.closeXMLTag("returnStatement")
-
 	if err := ce.checkForKeyword("return"); err != nil {
 		return SyntaxError(err)
 	}
@@ -885,9 +884,6 @@ func isOp(sym string) bool {
 // term (op term)*
 // Loops until a non (op term) is found, so caller should expect to be at the next token when this function returns.
 func (ce *CompilationEngine) compileExpression() error {
-	ce.openXMLTag("expression")
-	defer ce.closeXMLTag("expression")
-
 	if err := ce.compileTerm(); err != nil {
 		return SyntaxError(err)
 	}
@@ -918,9 +914,6 @@ func (ce *CompilationEngine) compileExpression() error {
 // varName | varName '[' expression ']' | subroutineCall |
 // '(' expression ')' | unaryOp term
 func (ce *CompilationEngine) compileTerm() error {
-	ce.openXMLTag("term")
-	defer ce.closeXMLTag("term")
-
 	if ce.jt.TokenType() == intConst {
 		ce.openXMLTag("integerConstant")
 		ic, err := ce.jt.IntVal()
@@ -953,9 +946,6 @@ func (ce *CompilationEngine) compileTerm() error {
 			return SyntaxError(err)
 		}
 		if sym == "(" {
-			if err := ce.checkForSymbol("("); err != nil {
-				return SyntaxError(err)
-			}
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
@@ -966,9 +956,6 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else if sym == "-" {
-			if err := ce.checkForSymbol("-"); err != nil {
-				return SyntaxError(err)
-			}
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
@@ -976,9 +963,6 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else if sym == "~" {
-			if err := ce.checkForSymbol("~"); err != nil {
-				return SyntaxError(err)
-			}
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
@@ -990,7 +974,6 @@ func (ce *CompilationEngine) compileTerm() error {
 			return SyntaxError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
 		}
 	} else if ce.jt.TokenType() == identifier {
-		// TODO: need to implement look ahead checks to determine
 		// varName | varName '[' expression ']' | subroutineCall
 		var err error
 		var peeked byte
@@ -1032,11 +1015,8 @@ func (ce *CompilationEngine) compileTerm() error {
 }
 
 // (expression (',' expression)* )?
-// caller should expect to be at the next token when this fucntion returns
+// caller should expect to be at the next token when this function returns
 func (ce *CompilationEngine) compileExpressionList() error {
-	ce.openXMLTag("expressionList")
-	defer ce.closeXMLTag("expressionList")
-
 	// Advance and check if we are at a closing parenthesis
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
@@ -1053,7 +1033,7 @@ func (ce *CompilationEngine) compileExpressionList() error {
 		return SyntaxError(err)
 	}
 	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
-		ce.checkForSymbol(sym) // compile ","
+		ce.checkForSymbol(sym)
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
