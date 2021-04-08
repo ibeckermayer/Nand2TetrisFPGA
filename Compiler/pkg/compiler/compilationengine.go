@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"log"
-	"os"
 	"runtime"
 )
 
@@ -24,34 +23,30 @@ func SyntaxError(err error) error {
 // CompilationEngine effects the actual compilation output.
 // Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
 type CompilationEngine struct {
-	jackFilePath string         // The name of the .jack input file to be compiled.
-	jt           *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
-	outputFile   *os.File       // The output file
-	st           *SymbolTable   // The symbol table
-	className    string         // The class name being compiled. Set at compileClass
+	jt *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
+	st *SymbolTable   // The symbol table
+	cw *CodeWriter    // The code writer
 }
 
 // NewCompilationEngine takes in a path to a jack file and returns an initialized CompilationEngine
 // ready to compile it. Since we assume one jack class per file, we will assume one compilation engine
 // per class.
 func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
-	ce := &CompilationEngine{
-		jackFilePath: jackFilePath,
-	}
+	ce := &CompilationEngine{}
 
 	// Initialize the ce's corresponding JackTokenizer
-	jt, err := NewJackTokenizer(ce.jackFilePath)
+	jt, err := NewJackTokenizer(jackFilePath)
 	if err != nil {
 		return nil, err
 	}
 	ce.jt = jt
 
-	// Create the output file
-	outputFile, err := os.Create(fmt.Sprintf("%v.vm", ce.jackFilePath[0:len(ce.jackFilePath)-len(".jack")]))
+	// Create the code writer
+	cw, err := NewCodeWriter(jackFilePath)
 	if err != nil {
 		return nil, err
 	}
-	ce.outputFile = outputFile
+	ce.cw = cw
 
 	// Create the symbol table
 	st := NewSymbolTable()
@@ -62,12 +57,14 @@ func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 
 // Run runs the compiler on ce.jackFilePath
 func (ce *CompilationEngine) Run() error {
-	defer ce.outputFile.Close()
+	// Close the output file after run
+	defer ce.cw.Close()
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
 	if err := ce.advance(); err != nil {
 		return err
 	}
+
 	return ce.compileClass()
 }
 
@@ -97,8 +94,8 @@ func (ce *CompilationEngine) compileClass() error {
 		return err
 	}
 
-	// set global className for function naming
-	ce.className = className
+	// set className for function naming
+	ce.cw.className = className
 
 	if err := ce.advance(); err != nil {
 		return err
@@ -253,9 +250,6 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return SyntaxError(fmt.Errorf("expected %v \"constructor\" or \"function\" or \"method\"", keyWord))
 	}
 
-	// begin to declare the function
-	ce.outputFile.WriteString(fmt.Sprintf("function %v.", ce.className))
-
 	if err := ce.advance(); err != nil {
 		return err
 	}
@@ -266,7 +260,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return err
 	}
 
-	// Check for subroutineName
+	// Get the subroutineName
 	if err := ce.advance(); err != nil {
 		return err
 	}
@@ -274,7 +268,6 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	if err != nil {
 		return SyntaxError(err)
 	}
-	ce.outputFile.WriteString(fmt.Sprintf("%v ", subroutineName))
 
 	// Eat the subroutineName
 	if err := ce.advance(); err != nil {
@@ -304,10 +297,10 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return SyntaxError(err)
 	}
 
-	// now that all the vars have been declared, we know how to declare the vm code function
-	ce.outputFile.WriteString(fmt.Sprintf("%v\n", ce.st.VarCount(KIND_VAR)))
+	// Now that all the vars have been declared, we know how to declare the vm code function
+	ce.cw.WriteFunction(subroutineName, ce.st.VarCount(KIND_VAR))
 
-	// statements
+	// Now that function has been declared, write its body
 	if err = ce.compileStatements(); err != nil {
 		return SyntaxError(err)
 	}
