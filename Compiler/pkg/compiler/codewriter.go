@@ -32,12 +32,12 @@ func (cw *CodeWriter) writeln(format string, a ...interface{}) {
 }
 
 // WriteFunction writes a vm function command
-func (cw *CodeWriter) WriteFunction(name string, nLocals uint) {
+func (cw *CodeWriter) WriteFunction(name string, nLocals int) {
 	cw.writeln("function %v %v", name, nLocals)
 }
 
 // WriteCall writes a vm call command
-func (cw *CodeWriter) WriteCall(name string, nArgs uint) {
+func (cw *CodeWriter) WriteCall(name string, nArgs int) {
 	cw.writeln("call %v %v", name, nArgs)
 }
 

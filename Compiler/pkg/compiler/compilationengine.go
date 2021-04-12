@@ -642,7 +642,7 @@ func (ce *CompilationEngine) compileLet() error {
 	if err = ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	_, err = ce.getVarName()
+	varName, err := ce.getVarName()
 	if err != nil {
 		return SyntaxError(err)
 	}
@@ -656,6 +656,7 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 	if sym == "[" {
+		// TODO
 		if err := ce.checkForSymbol("["); err != nil {
 			return SyntaxError(err)
 		}
@@ -682,16 +683,39 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 
-	// compile expression
+	// compile expression, whose result will wind up on the top of the stack
 	if err = ce.compileExpression(); err != nil {
 		return SyntaxError(err)
 	}
 
-	if err = ce.checkForSymbol(";"); err != nil {
+	// pop the expression result into its corresponding variable
+	kind, err := ce.st.KindOf(varName)
+	if err != nil {
+		return SyntaxError(err)
+	}
+	index, err := ce.st.IndexOf(varName)
+	if err != nil {
 		return SyntaxError(err)
 	}
 
-	// Eat own final character
+	switch kind {
+	case KIND_VAR:
+		ce.cw.WritePop(SEG_LOCAL, index)
+	case KIND_STATIC:
+		ce.cw.WritePop(SEG_STATIC, index)
+	case KIND_ARG:
+		ce.cw.WritePop(SEG_ARG, index)
+	case KIND_FIELD:
+		ce.cw.WritePop(SEG_THIS, index)
+		panic("setting `this` is not implemented yet")
+	default:
+		panic("invalid Kind")
+	}
+
+	// check and eat ";"
+	if err = ce.checkForSymbol(";"); err != nil {
+		return SyntaxError(err)
+	}
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
@@ -942,7 +966,16 @@ func (ce *CompilationEngine) compileTerm() error {
 		if err != nil {
 			return SyntaxError(err)
 		}
-		if !(kw == "true" || kw == "false" || kw == "null" || kw == "this") {
+		switch kw {
+		case "true":
+			ce.cw.WritePush(SEG_CONST, 1)
+			ce.cw.WriteArithmetic(COM_NEG)
+		case "false":
+			ce.cw.WritePush(SEG_CONST, 0)
+		case "null":
+		case "this":
+			panic("null/this is not implemented yet")
+		default:
 			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
 	} else if ce.jt.TokenType() == symbol {
@@ -1023,8 +1056,8 @@ func (ce *CompilationEngine) compileTerm() error {
 // (expression (',' expression)* )?
 // Caller should expect to be at the next token when this function returns.
 // Returns the number of ',' separated expressions that were compiled
-func (ce *CompilationEngine) compileExpressionList() (uint, error) {
-	var nArgs uint
+func (ce *CompilationEngine) compileExpressionList() (int, error) {
+	var nArgs int
 	// Advance and check if we are at a closing parenthesis
 	if err := ce.advance(); err != nil {
 		return nArgs, SyntaxError(err)
