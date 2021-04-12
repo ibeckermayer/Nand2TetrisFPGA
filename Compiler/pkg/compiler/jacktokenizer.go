@@ -37,7 +37,7 @@ func (jt *JackTokenizer) getValidVal() string {
 	case symbol:
 		return jt.symbol
 	case intConst:
-		return strconv.Itoa(jt.intVal)
+		return strconv.Itoa(int(jt.intVal))
 	case strConst:
 		return jt.stringVal
 	case keyWord:
@@ -60,11 +60,11 @@ func (jt *JackTokenizer) newInvalidAccessError(wasAttempted TokenType) *InvalidA
 type JackTokenizer struct {
 	filename   string // The input file name
 	stream     string // The entire file as a string
-	streamlen  int
-	i          int // Index of the character in the stream that is currently being analyzed
+	streamlen  uint
+	i          uint // Index of the character in the stream that is currently being analyzed
 	tokenType  TokenType
 	symbol     string // Becomes accessible when tokenType == "SYMBOL"
-	intVal     int    // Becomes accessible when tokenType == "INT_CONST"
+	intVal     uint   // Becomes accessible when tokenType == "INT_CONST"
 	stringVal  string // Becomes accessible when tokenType == "STRING_CONST"
 	keyWord    string // Becomes accessible when tokenType == "KEYWORD"
 	identifier string // Becomes accessible when tokenType == "IDENTIFIER"
@@ -78,7 +78,7 @@ func NewJackTokenizer(filename string) (*JackTokenizer, error) {
 	return &JackTokenizer{
 		filename:  filename,
 		stream:    text,
-		streamlen: len(text),
+		streamlen: uint(len(text)),
 		i:         0,
 	}, err
 }
@@ -191,7 +191,7 @@ func (jt *JackTokenizer) Advance() error {
 		if val > 32767 {
 			return fmt.Errorf("Integer constants must be a decimal number in the range of 0 .. 32767. Got %v", val)
 		}
-		jt.intVal = val
+		jt.intVal = uint(val)
 	} else if jt.curChar() == '"' {
 		// If we're at a string constant
 		jt.tokenType = strConst
@@ -241,7 +241,7 @@ func (jt *JackTokenizer) Advance() error {
 
 // curChar returns the current character being analyzed by the jt if no arguments are given.
 // Can optionally be called with an offset argument to look ahead, i.e. jt.curChar(1) == jt.stream[jt.i + 1]
-func (jt *JackTokenizer) curChar(offset ...int) byte {
+func (jt *JackTokenizer) curChar(offset ...uint) byte {
 	if len(offset) == 0 {
 		return jt.stream[jt.i]
 	}
@@ -267,9 +267,9 @@ func (jt *JackTokenizer) Symbol() (string, error) {
 }
 
 // IntVal returns the raw token if TokenType is intConst
-func (jt *JackTokenizer) IntVal() (int, error) {
+func (jt *JackTokenizer) IntVal() (uint, error) {
 	if jt.tokenType != intConst {
-		return -1, jt.newInvalidAccessError(intConst)
+		return 0, jt.newInvalidAccessError(intConst)
 	}
 	return jt.intVal, nil
 
@@ -322,7 +322,7 @@ func (jt *JackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 		if err != nil {
 			return err
 		}
-		data = strconv.Itoa(intData)
+		data = strconv.Itoa(int(intData))
 	case strConst:
 		elemName = "stringConstant"
 		data, err = jt.StringVal()

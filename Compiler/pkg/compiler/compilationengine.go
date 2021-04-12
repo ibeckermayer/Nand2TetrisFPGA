@@ -21,7 +21,7 @@ func SyntaxError(err error) error {
 }
 
 // CompilationEngine effects the actual compilation output.
-// Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
+// Gets its input from a JackTokenizer and emits its parsed structure uinto an output file/stream.
 type CompilationEngine struct {
 	jt *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	st *SymbolTable   // The symbol table
@@ -415,7 +415,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
-			// but first check that we didn't bump immediately into a ")", which would be invalid
+			// but first check that we didn't bump immediately uinto a ")", which would be invalid
 			if err := ce.checkForSymbol(")"); err == nil {
 				return SyntaxError(fmt.Errorf("invalid syntax \",)\""))
 			}
@@ -688,7 +688,7 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 
-	// pop the expression result into its corresponding variable
+	// pop the expression result uinto its corresponding variable
 	kind, err := ce.st.KindOf(varName)
 	if err != nil {
 		return SyntaxError(err)
@@ -806,7 +806,7 @@ func (ce *CompilationEngine) compileReturn() error {
 // ('else' '{' statements '}')?
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileIf() error {
-	// this chunk of code is used in regular if and if-else, so abstracted into an internal
+	// this chunk of code is used in regular if and if-else, so abstracted uinto an uinternal
 	// function to avoid having it written twice
 	compileStatementsSubsection := func() error {
 		if err := ce.advance(); err != nil {
@@ -946,7 +946,7 @@ func (ce *CompilationEngine) compileExpression() error {
 	return nil
 }
 
-// integerConstant | stringConstant | keywordConstant |
+// uintegerConstant | stringConstant | keywordConstant |
 // varName | varName '[' expression ']' | subroutineCall |
 // '(' expression ')' | unaryOp term
 func (ce *CompilationEngine) compileTerm() error {
@@ -1056,8 +1056,8 @@ func (ce *CompilationEngine) compileTerm() error {
 // (expression (',' expression)* )?
 // Caller should expect to be at the next token when this function returns.
 // Returns the number of ',' separated expressions that were compiled
-func (ce *CompilationEngine) compileExpressionList() (int, error) {
-	var nArgs int
+func (ce *CompilationEngine) compileExpressionList() (uint, error) {
+	var nArgs uint
 	// Advance and check if we are at a closing parenthesis
 	if err := ce.advance(); err != nil {
 		return nArgs, SyntaxError(err)

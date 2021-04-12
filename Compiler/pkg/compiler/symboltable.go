@@ -21,7 +21,7 @@ type Entry struct {
 	// Kind is the kind of the identifier (see constants of prefix "KIND_")
 	Kind Kind
 	// Index is the index assigned to the identifier in the current scope
-	Index int
+	Index uint
 }
 
 // symTable is the actual table mapping symbol names to their corresponding entry
@@ -36,7 +36,7 @@ type SymbolTable struct {
 	// simpler and more concise class methods
 	table map[Kind]*symTable
 	// varCount is a map between each Kind and the number of variables of the given Kind defined in the current scope
-	varCount map[Kind]int
+	varCount map[Kind]uint
 }
 
 // NewSymbolTable creates a new empty symbol table
@@ -52,7 +52,7 @@ func NewSymbolTable() *SymbolTable {
 			KIND_VAR:    &subroutineTable,
 		},
 
-		varCount: map[Kind]int{
+		varCount: map[Kind]uint{
 			KIND_STATIC: 0,
 			KIND_FIELD:  0,
 			KIND_ARG:    0,
@@ -95,7 +95,7 @@ func (s *SymbolTable) Define(name, type_ string, kind Kind) error {
 }
 
 // VarCount returns the number of variables of the given kind already defined in the current scope
-func (s *SymbolTable) VarCount(kind Kind) int {
+func (s *SymbolTable) VarCount(kind Kind) uint {
 	return s.varCount[kind]
 }
 
@@ -118,7 +118,7 @@ func (s *SymbolTable) KindOf(name string) (Kind, error) {
 	}
 
 	// If nothing was found in either table return KIND_NONE
-	return "", fmt.Errorf("identifier %v was not found in any scope")
+	return "", fmt.Errorf("identifier %v was not found in any scope", name)
 }
 
 // Returns the type of the named identifier in the given scope
@@ -143,7 +143,7 @@ func (s *SymbolTable) TypeOf(name string) (string, error) {
 }
 
 // IndexOf returns the index assigned to the named identifier
-func (s *SymbolTable) IndexOf(name string) (int, error) {
+func (s *SymbolTable) IndexOf(name string) (uint, error) {
 	subroutineTable := *s.table[KIND_ARG]
 	classTable := *s.table[KIND_STATIC]
 

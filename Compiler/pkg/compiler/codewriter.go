@@ -32,22 +32,22 @@ func (cw *CodeWriter) writeln(format string, a ...interface{}) {
 }
 
 // WriteFunction writes a vm function command
-func (cw *CodeWriter) WriteFunction(name string, nLocals int) {
+func (cw *CodeWriter) WriteFunction(name string, nLocals uint) {
 	cw.writeln("function %v %v", name, nLocals)
 }
 
 // WriteCall writes a vm call command
-func (cw *CodeWriter) WriteCall(name string, nArgs int) {
+func (cw *CodeWriter) WriteCall(name string, nArgs uint) {
 	cw.writeln("call %v %v", name, nArgs)
 }
 
 // WritePush writes a vm push command
-func (cw *CodeWriter) WritePush(segment Segment, index int) {
+func (cw *CodeWriter) WritePush(segment Segment, index uint) {
 	cw.writeln("push %v %v", segment, index)
 }
 
 // Write Pop writes a vm pop command
-func (cw *CodeWriter) WritePop(segment Segment, index int) {
+func (cw *CodeWriter) WritePop(segment Segment, index uint) {
 	cw.writeln("pop %v %v", segment, index)
 }
 
