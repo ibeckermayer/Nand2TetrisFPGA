@@ -868,16 +868,31 @@ func (ce *CompilationEngine) compileOp(sym string) {
 	switch sym {
 	case "+":
 		ce.cw.WriteArithmetic(COM_ADD)
+	case "-":
+		ce.cw.WriteArithmetic(COM_SUB)
 	case "*":
 		ce.cw.WriteCall("Math.multiply", 2)
+	case "/":
+		ce.cw.WriteCall("Math.divide", 2)
+	case "&":
+		ce.cw.WriteArithmetic(COM_AND)
+	case "|":
+		ce.cw.WriteArithmetic(COM_OR)
+	case "<":
+		ce.cw.WriteArithmetic(COM_LT)
+	case ">":
+		ce.cw.WriteArithmetic(COM_GT)
+	case "=":
+		ce.cw.WriteArithmetic(COM_EQ)
 	default:
-		panic("not implemented")
+		panic("invalid operator")
 	}
 }
 
 // term (op term)*
 // Loops until a non (op term) is found, so caller should expect to be at the next token when this function returns.
 func (ce *CompilationEngine) compileExpression() error {
+	// compiles the first term and pushes its result onto the top of the stack
 	if err := ce.compileTerm(); err != nil {
 		return SyntaxError(err)
 	}
@@ -886,21 +901,20 @@ func (ce *CompilationEngine) compileExpression() error {
 		return SyntaxError(err)
 	}
 
-	// TODO: there could be better syntax checking for symbols here
 	// (op term)*
-	for sym, _ := ce.jt.Symbol(); isOp(sym); sym, _ = ce.jt.Symbol() {
+	for sym, err := ce.jt.Symbol(); isOp(sym) && err == nil; sym, err = ce.jt.Symbol() {
 		// op term
-		if err := ce.advance(); err != nil {
+		if err = ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
 		// first term is on top of the stack,
 		// now compile the next term so that's on top of the first
-		if err := ce.compileTerm(); err != nil {
+		if err = ce.compileTerm(); err != nil {
 			return SyntaxError(err)
 		}
 		// then apply the operation to the two terms at the top of the stack
 		ce.compileOp(sym)
-		if err := ce.advance(); err != nil {
+		if err = ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
 	}
