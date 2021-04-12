@@ -26,6 +26,9 @@ type CompilationEngine struct {
 	jt *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	st *SymbolTable   // The symbol table
 	cw *CodeWriter    // The code writer
+	// className is the class name being compiled,
+	// set at compileClass by compilation engine
+	className string
 }
 
 // NewCompilationEngine takes in a path to a jack file and returns an initialized CompilationEngine
@@ -95,7 +98,7 @@ func (ce *CompilationEngine) compileClass() error {
 	}
 
 	// set className for function naming
-	ce.cw.className = className
+	ce.className = className
 
 	if err := ce.advance(); err != nil {
 		return err
@@ -298,7 +301,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	}
 
 	// Now that all the vars have been declared, we know how to declare the vm code function
-	ce.cw.WriteFunction(subroutineName, ce.st.VarCount(KIND_VAR))
+	ce.cw.WriteFunction(ce.className+"."+subroutineName, ce.st.VarCount(KIND_VAR))
 
 	// Now that function has been declared, write its body
 	if err = ce.compileStatements(); err != nil {
@@ -538,28 +541,30 @@ func (ce *CompilationEngine) compileStatements() error {
 // subroutineName '(' expressionList ')' |
 // (className | varName) '.' subroutineName '(' expressionList ')'
 func (ce *CompilationEngine) compileSubroutineCall() error {
-	if err := ce.checkForIdentifier(); err != nil {
+	var id1, id2, name string
+	var err error
+
+	// Store subroutineName | className | varName in id1
+	id1, err = ce.jt.Identifier()
+	if err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-	var err error
+
 	var sym string
 	sym, err = ce.jt.Symbol() // either a "." or a "("
 	if err != nil {
 		return SyntaxError(fmt.Errorf("expected a \".\" or \"(\""))
 	}
 	if sym == "." {
-		// ".", so compile and eat it and compile its subsequent subroutineName
-		if err := ce.checkForSymbol("."); err != nil {
-			return SyntaxError(err)
-		}
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
-		// subroutineName
-		if err := ce.checkForIdentifier(); err != nil {
+		// id1 is className || varName, store subroutineName in id2
+		id2, err = ce.jt.Identifier()
+		if err != nil {
 			return SyntaxError(err)
 		}
 		// advance and set external scope's sym variable to the next sym, which ought to be a "("
@@ -572,12 +577,27 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 		}
 	}
 
+	if id2 != "" {
+		// (className | varName) '.' subroutineName '(' expressionList ')'
+		// call in the form of id.func()
+		name = id1 + "." + id2
+		// TODO: check if this is varName and retrieve its type from the symbol table in order to invoke the function
+	} else {
+		// subroutineName '(' expressionList ')'
+		// call in the form of func()
+		name = id1
+	}
+
 	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
-	if err := ce.compileExpressionList(); err != nil {
+
+	nArgs, err := ce.compileExpressionList()
+	if err != nil {
 		return SyntaxError(err)
 	}
+	ce.cw.WriteCall(name, nArgs)
+
 	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
 	}
@@ -588,10 +608,6 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 // 'do' subroutineCall ';'
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileDo() error {
-	if err := ce.checkForKeyword("do"); err != nil {
-		return SyntaxError(err)
-	}
-
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
@@ -608,6 +624,8 @@ func (ce *CompilationEngine) compileDo() error {
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
+	// after a `do funcCall()` there will be a value on top of the stack that we aren't using, so pop that to temp
+	ce.cw.WritePop(SEG_TEMP, 0)
 	return nil
 }
 
@@ -730,34 +748,33 @@ func (ce *CompilationEngine) compileWhile() error {
 }
 
 // 'return' expression? ';'
-// Eats it's own final character, so caller needn't immediately call advance() upon this function returning
+// Eats it's own final character, so caller needn't immediately call advance() upon this function returning.
+// According to the book:
+// - VM functions corresponding to void Jack methods and functions must return the constant 0 as their return value.
+// - When translating a do sub statement where sub is a void method or function, the caller of the corresponding VM function must pop (and ignore) the returned value (which is always the constant 0).
+// However I'm skeptical as to whether the first bullet is strictly necessary based on walking through the stack model and not seeing any problems with just returning whatever junk happens to be on top
+// of the stack rather than returning 0. I am going to ignore this requirement for now in order to see if it surfaces some bug that identifies why its a requirement, and have also asked a question
+// on the forum here: http://nand2tetris-questions-and-answers-forum.32033.n3.nabble.com/Do-void-functions-truly-need-to-return-0-td4035927.html
 func (ce *CompilationEngine) compileReturn() error {
-	if err := ce.checkForKeyword("return"); err != nil {
-		return SyntaxError(err)
-	}
-
 	// advance and check for ';'
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-
 	// if not ';', should be an expression
 	if sym, _ := ce.jt.Symbol(); sym != ";" {
 		if err := ce.compileExpression(); err != nil {
 			return SyntaxError(err)
 		}
 	}
-
 	// now compile the ';'
 	if err := ce.checkForSymbol(";"); err != nil {
 		return SyntaxError(err)
 	}
-
 	// eat own final character
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-
+	ce.cw.WriteReturn()
 	return nil
 }
 
@@ -847,6 +864,17 @@ func isOp(sym string) bool {
 	return (sym == "+" || sym == "-" || sym == "*" || sym == "/" || sym == "&" || sym == "|" || sym == "<" || sym == ">" || sym == "=")
 }
 
+func (ce *CompilationEngine) compileOp(sym string) {
+	switch sym {
+	case "+":
+		ce.cw.WriteArithmetic(COM_ADD)
+	case "*":
+		ce.cw.WriteCall("Math.multiply", 2)
+	default:
+		panic("not implemented")
+	}
+}
+
 // term (op term)*
 // Loops until a non (op term) is found, so caller should expect to be at the next token when this function returns.
 func (ce *CompilationEngine) compileExpression() error {
@@ -858,16 +886,20 @@ func (ce *CompilationEngine) compileExpression() error {
 		return SyntaxError(err)
 	}
 
+	// TODO: there could be better syntax checking for symbols here
+	// (op term)*
 	for sym, _ := ce.jt.Symbol(); isOp(sym); sym, _ = ce.jt.Symbol() {
-		if err := ce.checkForSymbol(sym); err != nil {
-			return SyntaxError(err)
-		}
+		// op term
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
+		// first term is on top of the stack,
+		// now compile the next term so that's on top of the first
 		if err := ce.compileTerm(); err != nil {
 			return SyntaxError(err)
 		}
+		// then apply the operation to the two terms at the top of the stack
+		ce.compileOp(sym)
 		if err := ce.advance(); err != nil {
 			return SyntaxError(err)
 		}
@@ -881,10 +913,11 @@ func (ce *CompilationEngine) compileExpression() error {
 // '(' expression ')' | unaryOp term
 func (ce *CompilationEngine) compileTerm() error {
 	if ce.jt.TokenType() == intConst {
-		_, err := ce.jt.IntVal()
+		intVal, err := ce.jt.IntVal()
 		if err != nil {
 			return SyntaxError(err)
 		}
+		ce.cw.WritePush(SEG_CONST, intVal)
 	} else if ce.jt.TokenType() == strConst {
 		_, err := ce.jt.StringVal()
 		if err != nil {
@@ -974,32 +1007,36 @@ func (ce *CompilationEngine) compileTerm() error {
 }
 
 // (expression (',' expression)* )?
-// caller should expect to be at the next token when this function returns
-func (ce *CompilationEngine) compileExpressionList() error {
+// Caller should expect to be at the next token when this function returns.
+// Returns the number of ',' separated expressions that were compiled
+func (ce *CompilationEngine) compileExpressionList() (uint, error) {
+	var nArgs uint
 	// Advance and check if we are at a closing parenthesis
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return nArgs, SyntaxError(err)
 	}
 	sym, _ := ce.jt.Symbol()
 	if ce.jt.TokenType() == symbol && sym == ")" {
-		// The next token was a closing parenthesis; simply return, and the caller is expected
-		// to compile the closing paren
-		return nil
+		// The next token was a closing parenthesis; the caller is expected to account for it
+		return nArgs, nil
 	}
 
 	// compile expression
 	if err := ce.compileExpression(); err != nil {
-		return SyntaxError(err)
+		return nArgs, SyntaxError(err)
 	}
+	nArgs++
+	// check for further expressions in the list
 	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
 		ce.checkForSymbol(sym)
 		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
+			return nArgs, SyntaxError(err)
 		}
 		if err := ce.compileExpression(); err != nil {
-			return SyntaxError(err)
+			return nArgs, SyntaxError(err)
 		}
+		nArgs++
 	}
 
-	return nil
+	return nArgs, nil
 }
