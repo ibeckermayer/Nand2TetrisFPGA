@@ -61,6 +61,21 @@ func (cw *CodeWriter) WriteReturn() {
 	cw.writeln("return")
 }
 
+// WriteLabel writes a vm label command
+func (cw *CodeWriter) WriteLabel(label string) {
+	cw.writeln("label %v", label)
+}
+
+// WriteIf writes a vm if-goto command
+func (cw *CodeWriter) WriteIf(label string) {
+	cw.writeln("if-goto %v", label)
+}
+
+// WriteGoto writes a vm goto command
+func (cw *CodeWriter) WriteGoto(label string) {
+	cw.writeln("goto %v", label)
+}
+
 type Segment string
 
 const (

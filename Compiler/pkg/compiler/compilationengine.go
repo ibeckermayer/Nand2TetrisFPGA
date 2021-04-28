@@ -7,6 +7,8 @@ import (
 	"runtime"
 )
 
+var DEBUG = false
+
 //SyntaxError logs the function name, file, and line number
 func SyntaxError(err error) error {
 	if err != nil {
@@ -14,14 +16,17 @@ func SyntaxError(err error) error {
 		// the error happened, 0 = this function, we don't want that.
 		pc, fn, line, _ := runtime.Caller(1)
 
-		log.Printf("[error] in %s[%s:%d] %v", runtime.FuncForPC(pc).Name(), fn, line, err)
+		if DEBUG {
+			log.Printf("[error] in %s[%s:%d] %v", runtime.FuncForPC(pc).Name(), fn, line, err)
+		}
+
 		return err
 	}
 	return nil
 }
 
 // CompilationEngine effects the actual compilation output.
-// Gets its input from a JackTokenizer and emits its parsed structure uinto an output file/stream.
+// Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
 type CompilationEngine struct {
 	jt *JackTokenizer // A tokenizer set up to tokenize the file we want to compile
 	st *SymbolTable   // The symbol table
@@ -29,6 +34,11 @@ type CompilationEngine struct {
 	// className is the class name being compiled,
 	// set at compileClass by compilation engine
 	className string
+	// whileId is used to ensure unique labels are used in the vm code translation
+	// for each while loop encountered in the class
+	whileId uint
+	// ifId is similar to whileId, but used for if-else statements
+	ifId uint
 }
 
 // NewCompilationEngine takes in a path to a jack file and returns an initialized CompilationEngine
@@ -54,6 +64,9 @@ func NewCompilationEngine(jackFilePath string) (*CompilationEngine, error) {
 	// Create the symbol table
 	st := NewSymbolTable()
 	ce.st = st
+
+	ce.whileId = 0
+	ce.ifId = 0
 
 	return ce, nil
 }
@@ -415,7 +428,7 @@ func (ce *CompilationEngine) compileParameterList() error {
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
-			// but first check that we didn't bump immediately uinto a ")", which would be invalid
+			// but first check that we didn't bump immediately into a ")", which would be invalid
 			if err := ce.checkForSymbol(")"); err == nil {
 				return SyntaxError(fmt.Errorf("invalid syntax \",)\""))
 			}
@@ -688,7 +701,7 @@ func (ce *CompilationEngine) compileLet() error {
 		return SyntaxError(err)
 	}
 
-	// pop the expression result uinto its corresponding variable
+	// pop the expression result into its corresponding variable
 	kind, err := ce.st.KindOf(varName)
 	if err != nil {
 		return SyntaxError(err)
@@ -725,9 +738,14 @@ func (ce *CompilationEngine) compileLet() error {
 // 'while '(' expression ')' '{' statements '}'
 // eats its own final token before returning, so calling function can expect to already be on the next token
 func (ce *CompilationEngine) compileWhile() error {
-	if err := ce.checkForKeyword("while"); err != nil {
-		return SyntaxError(err)
-	}
+	// generate unique start and end labels
+	uuid := fmt.Sprintf("%v", ce.whileId)
+	ce.whileId++
+	startLabel := "while_start_" + ce.className + "_" + uuid
+	endLabel := "while_end_" + ce.className + "_" + uuid
+
+	// write the start label
+	ce.cw.WriteLabel(startLabel)
 
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
@@ -736,12 +754,18 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
+	// compute the condition, if true then zero will be on top of the stack,
+	// else nonzero will be on top
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.compileExpression(); err != nil {
 		return SyntaxError(err)
 	}
+
+	// Now if-goto the endLabel. if-goto only jumps if value on top of stack is nonzero
+	// (aka the condition was false we want to jump out of the loop)
+	ce.cw.WriteIf(endLabel)
 
 	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
@@ -754,6 +778,7 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
+	// compile the loop's internal logic
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
@@ -761,12 +786,18 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
+	// end of loop, jump back to the beggining
+	ce.cw.WriteGoto(startLabel)
+
 	if err := ce.checkForSymbol("}"); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
+
+	// place the end label at the bottom of the loop in order to escape it
+	ce.cw.WriteLabel(endLabel)
 
 	return nil
 }
@@ -806,7 +837,13 @@ func (ce *CompilationEngine) compileReturn() error {
 // ('else' '{' statements '}')?
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileIf() error {
-	// this chunk of code is used in regular if and if-else, so abstracted uinto an uinternal
+	// generate unique start and end labels
+	uuid := fmt.Sprintf("%v", ce.ifId)
+	ce.ifId++
+	elseLabel := "else_" + ce.className + "_" + uuid
+	endLabel := "if_else_end_" + ce.className + "_" + uuid
+
+	// this chunk of code is used in regular if and if-else, so abstracted into an internal
 	// function to avoid having it written twice
 	compileStatementsSubsection := func() error {
 		if err := ce.advance(); err != nil {
@@ -830,23 +867,28 @@ func (ce *CompilationEngine) compileIf() error {
 		return nil
 	}
 
-	if err := ce.checkForKeyword("if"); err != nil {
-		return SyntaxError(err)
-	}
-
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
 	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
+
+	// compute condition
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
-
 	if err := ce.compileExpression(); err != nil {
 		return SyntaxError(err)
 	}
+
+	// negate the conditional result on the top of the stack, so that the subsequent
+	// if-goto only jumps to the else label if the condition was false :
+	// - in the case that conditional evaluates to false (0), it gets negated to true (-1), which causes the if-goto to execute a jump to the elseLabel
+	// - in the case that the condition evaluates to true (-1), it gets negated false (0), which means the if-goto doesn't jump, and the if statement is exectuted
+	//   (which subsequently skips the else statement by jumping to the end)
+	ce.cw.WriteArithmetic(COM_NOT)
+	ce.cw.WriteGoto(elseLabel)
 
 	// compileExpression loops us to next token so no need to call advance()
 	if err := ce.checkForSymbol(")"); err != nil {
@@ -856,6 +898,14 @@ func (ce *CompilationEngine) compileIf() error {
 	if err := compileStatementsSubsection(); err != nil {
 		return SyntaxError(err)
 	}
+
+	// if condition was true and statement was executed, so skip the else by jumping to the end label
+	ce.cw.WriteGoto(endLabel)
+
+	// Write the else label. The else label can be used in this logic even in the case
+	// that an if statement has no corresponding else
+	// (somewhat complicated story, see Figure 8.1 in the book and walk through the logic)
+	ce.cw.WriteLabel(elseLabel)
 
 	// advance and check for an else statement
 	if err := ce.advance(); err != nil {
@@ -879,6 +929,9 @@ func (ce *CompilationEngine) compileIf() error {
 			}
 		}
 	}
+
+	// write the end label
+	ce.cw.WriteLabel(endLabel)
 
 	return nil
 }
@@ -1043,14 +1096,39 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else {
-			_, err := ce.getVarName()
-			return err
+			// Else we are at a variable
+			varName, err := ce.getVarName()
+
+			kind, err := ce.st.KindOf(varName)
+			if err != nil {
+				return SyntaxError(err)
+			}
+
+			index, err := ce.st.IndexOf(varName)
+			if err != nil {
+				return SyntaxError(err)
+			}
+
+			ce.cw.WritePush(kindToSegment(kind), index)
 		}
 	} else {
 		return SyntaxError(fmt.Errorf("unknown error"))
 	}
 
 	return nil
+}
+
+func kindToSegment(kind Kind) Segment {
+	switch kind {
+	case KIND_STATIC:
+		return SEG_STATIC
+	case KIND_VAR:
+		return SEG_LOCAL
+	case KIND_ARG:
+		return SEG_ARG
+	default:
+		panic(fmt.Sprintf("kindToSegment not implemented for kind %v", kind))
+	}
 }
 
 // (expression (',' expression)* )?
