@@ -1,9 +1,11 @@
 # Compiler
 
+#### Build
+
+```
+go build -o Compiler main.go
+```
+
 #### Testing
 
-To run all the tests from the command line, run
-
-```
-go test ./test/
-```
+TODO: instructions for getting the vm simulator, compiling, etc.
