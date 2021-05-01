@@ -25,7 +25,9 @@ class Main {
      * and converts the value in RAM[8000] to binary.
      */
     function void main() {
-	    var int value;
+	    var int value, toBeConverted;
+        let toBeConverted = 15;           // The decimal number to be converted to binary in RAM[8001]..RAM[8016]
+        do Main.fillMemory(8000, 1, toBeConverted);
         do Main.fillMemory(8001, 16, -1); // sets RAM[8001]..RAM[8016] to -1
         let value = Memory.peek(8000);    // reads a value from RAM[8000]
         do Main.convert(value);           // performs the conversion

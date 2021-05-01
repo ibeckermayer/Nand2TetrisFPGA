@@ -3,7 +3,7 @@
 #### Build
 
 ```
-go build -o Compiler main.go
+go build -o JackCompiler main.go
 ```
 
 #### Testing

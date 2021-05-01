@@ -754,8 +754,9 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
-	// compute the condition, if true then zero will be on top of the stack,
-	// else nonzero will be on top
+	// compute the condition:
+	// if true then -1 will be on top of the stack,
+	// if false then 0 will be on top of the stack
 	if err := ce.advance(); err != nil {
 		return SyntaxError(err)
 	}
@@ -763,8 +764,12 @@ func (ce *CompilationEngine) compileWhile() error {
 		return SyntaxError(err)
 	}
 
-	// Now if-goto the endLabel. if-goto only jumps if value on top of stack is nonzero
-	// (aka the condition was false we want to jump out of the loop)
+	// Now bit-wise not whatever is on top of the stack and if-goto the endLabel
+	// if-goto only jumps if value on top of stack is nonzero, so in the case where
+	// the condition was true, -1 will be bit-wise not-ed to 0, and so the if-goto will
+	// be ignored. In the case where the condition was false, 0 will be bit-wise not-ed
+	// to -1, and the if-goto will cause a goto that breaks out of the loop.
+	ce.cw.WriteArithmetic(COM_NOT)
 	ce.cw.WriteIf(endLabel)
 
 	if err := ce.checkForSymbol(")"); err != nil {
@@ -883,12 +888,12 @@ func (ce *CompilationEngine) compileIf() error {
 	}
 
 	// negate the conditional result on the top of the stack, so that the subsequent
-	// if-goto only jumps to the else label if the condition was false :
+	// if-goto only jumps to the else label if the condition was false:
 	// - in the case that conditional evaluates to false (0), it gets negated to true (-1), which causes the if-goto to execute a jump to the elseLabel
 	// - in the case that the condition evaluates to true (-1), it gets negated false (0), which means the if-goto doesn't jump, and the if statement is exectuted
 	//   (which subsequently skips the else statement by jumping to the end)
 	ce.cw.WriteArithmetic(COM_NOT)
-	ce.cw.WriteGoto(elseLabel)
+	ce.cw.WriteIf(elseLabel)
 
 	// compileExpression loops us to next token so no need to call advance()
 	if err := ce.checkForSymbol(")"); err != nil {
@@ -1048,13 +1053,7 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 		} else if sym == "-" {
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
-			if err := ce.compileTerm(); err != nil {
-				return SyntaxError(err)
-			}
-		} else if sym == "~" {
+			// Advance and push whatever is being negated to the top of the stack
 			if err := ce.advance(); err != nil {
 				return SyntaxError(err)
 			}
@@ -1062,6 +1061,19 @@ func (ce *CompilationEngine) compileTerm() error {
 				return SyntaxError(err)
 			}
 
+			// Negate it
+			ce.cw.WriteArithmetic(COM_NEG)
+		} else if sym == "~" {
+			// Advance and push whatever is being bit-wise not-ed to the top of the stack
+			if err := ce.advance(); err != nil {
+				return SyntaxError(err)
+			}
+			if err := ce.compileTerm(); err != nil {
+				return SyntaxError(err)
+			}
+
+			// Bit-wise not it
+			ce.cw.WriteArithmetic(COM_NOT)
 		} else {
 			return SyntaxError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
 		}
