@@ -4,8 +4,8 @@ module Hack (input wire clk,
              output wire vga_vs,       // vertical sync output
              output wire [3:0] vga_r,  // 4-bit VGA red output
              output wire [3:0] vga_g,  // 4-bit VGA green output
-             output wire [3:0] vga_b); // 4-bit VGA blue 
-    
+             output wire [3:0] vga_b); // 4-bit VGA blue
+
     // connecting wires
     wire [15:0] data_mem_out_to_cpu_inM;
     wire [15:0] instr_mem_out_to_cpu_instruction;
@@ -16,9 +16,9 @@ module Hack (input wire clk,
     // Driven by vga_ctrl
     wire [14:0] screen_addr;
     wire [14:0] screen_out;
-    
+
     // instantiate ROM
-    RAMROM #(16, "/home/ibeckermayer/Nand2TetrisFPGA/Assembler/write_every_other_pixel.hack") instr_mem
+    RAMROM #(16, "../../Assembler/write_every_other_pixel.hack") instr_mem
     (
     .clk(clk),
     .address(cpu_pc_to_rom_address),	      // input
@@ -29,7 +29,7 @@ module Hack (input wire clk,
     .load(0),
     .in(0)
     );
-    
+
     // instantiate CPU
     CPU cpu
     (
@@ -42,7 +42,7 @@ module Hack (input wire clk,
     .addressM(cpu_addressM_to_data_mem_address),    // output
     .pc(cpu_pc_to_rom_address)		                // output
     );
-    
+
     // instantiate RAM
     RAMROM #(15) data_mem
     (
@@ -54,7 +54,7 @@ module Hack (input wire clk,
     .out(data_mem_out_to_cpu_inM),		        // output
     .screen_out(screen_out)
     );
-    
+
     // instantiate VGA controller
     VGA320x240_Controller vga_ctrl
     (
@@ -68,5 +68,5 @@ module Hack (input wire clk,
     .vga_b(vga_b),
     .vga_g(vga_g)
     );
-    
+
 endmodule // Hack
