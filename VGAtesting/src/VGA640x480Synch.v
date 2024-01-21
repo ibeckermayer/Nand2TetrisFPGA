@@ -59,18 +59,19 @@ module VGA640x480Synch(input wire clk,          // base clock
             h_count <= 0;
             v_count <= 0;
         end
-            if (pixel_clk)  // once per pixel
+        
+        if (pixel_clk)  // once per pixel
+        begin
+            if (h_count == LINE - 1)  // end of line
             begin
-                if (h_count == LINE - 1)  // end of line
-                begin
-                    h_count <= 0;
-                    v_count <= v_count + 1;
-                end
-                else
-                    h_count <= h_count + 1;
-                
-                if (v_count == SCREEN - 1)  // end of screen
-                    v_count <= 0;
-                    end
-                    end
-                    endmodule
+                h_count <= 0;
+                v_count <= v_count + 1;
+            end
+            else
+                h_count <= h_count + 1;
+            
+            if (v_count == SCREEN - 1)  // end of screen
+                v_count <= 0;
+        end
+    end
+endmodule

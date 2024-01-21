@@ -46,22 +46,26 @@ module Hack (input wire clk,
     // instantiate RAM
     RAMROM #(15) data_mem
     (
-    .clk(clk),				                    // input
+    .clk(clk),				                          // input
     .address(cpu_addressM_to_data_mem_address[14:0]), // input, attach lower 15-bits
-    .screen_address(screen_addr),
-    .load(cpu_writeM_to_data_mem_load),	        // input
-    .in(cpu_outM_to_data_mem_in),		        // input
-    .out(data_mem_out_to_cpu_inM),		        // output
-    .screen_out(screen_out)
+    .screen_address(screen_addr),                     // input: the memory address to read from for the screen
+    .load(cpu_writeM_to_data_mem_load),	              // input
+    .in(cpu_outM_to_data_mem_in),		              // input
+    .out(data_mem_out_to_cpu_inM),		              // output
+    .screen_out(screen_out)                           // output: the data at `screen_address`
     );
 
     // instantiate VGA controller
     VGA320x240_Controller vga_ctrl
     (
-    .clk(clk),
-    .reset(reset),
-    .screen_in(screen_out),
+    .clk(clk),                  // input
+    .reset(reset),              // input
+    // output: this component determines which screen address to read from
+    // in the RAMROM above, and outputs it here.
     .screen_addr(screen_addr),
+    // input: the data at `screen_addr` read in here to determine the color
+    // of the pixel to draw.
+    .screen_in(screen_out),
     .vga_hs(vga_hs),
     .vga_vs(vga_vs),
     .vga_r(vga_r),
