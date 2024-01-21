@@ -17,3 +17,12 @@ The test programs under the `test/` directory are copied (and optionally modifie
 The testing is currently done by manually running and checking the test output against the software-suite-provided emulator; however the VM itself isn't all that complex and so it wouldn't be too difficult to build another emulator in go that could be used in an automated test suite.
 
 Alternatively there is likely some way to hook into the provided emulator such that you could load the program, run the simulation, and then check the output programatically.
+
+Tests TODO:
+
+- ~Seven~
+- ~ConvertToBin~
+- Square
+- Average
+- Pong
+- ComplexArrays
