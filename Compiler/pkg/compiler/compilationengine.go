@@ -9,7 +9,7 @@ import (
 
 var DEBUG = false
 
-//SyntaxError logs the function name, file, and line number
+// SyntaxError logs the function name, file, and line number
 func SyntaxError(err error) error {
 	if err != nil {
 		// notice that we're using 1, so it will actually log the where
@@ -258,12 +258,10 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	// Clear the subroutine table
 	ce.st.StartSubroutine()
 
-	// Calling function checked that current token is "constructor" or "function" or "method"
-	if kw, err := ce.jt.KeyWord(); !(kw == "constructor" || kw == "function" || kw == "method") {
-		if err != nil {
-			return SyntaxError(err)
-		}
-		return SyntaxError(fmt.Errorf("expected %v \"constructor\" or \"function\" or \"method\"", keyWord))
+	// kw is one of "constructor" or "function" or "method"
+	kw, err := ce.jt.KeyWord()
+	if err != nil {
+		return SyntaxError(err)
 	}
 
 	if err := ce.advance(); err != nil {
@@ -271,7 +269,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	}
 
 	// Get a ('void' | type)
-	_, err := ce.getVoidOrType()
+	_, err = ce.getVoidOrType()
 	if err != nil {
 		return err
 	}
@@ -316,7 +314,30 @@ func (ce *CompilationEngine) compileSubroutine() error {
 	// Now that all the vars have been declared, we know how to declare the vm code function
 	ce.cw.WriteFunction(ce.className+"."+subroutineName, ce.st.VarCount(KIND_VAR))
 
-	// Now that function has been declared, write its body
+	// If this is a constructor, it is implied that the first part of its body
+	// is code to allocate memory for the object and set `this` to the address of that object
+	if kw == "constructor" {
+		// All of Jack's data types are 16-bits (1 word) long, so the size of an object is simply the number of fields it has.
+		// (If an field is another object, then it's simply a pointer to that object which is 16-bits long.)
+		objectSize := ce.st.VarCount(KIND_FIELD)
+		// Allocate memory for the object:
+		// push objectSize onto the stack
+		ce.cw.WritePush(SEG_CONST, objectSize)
+		// call Memory.alloc with that objectSize
+		ce.cw.WriteCall("Memory.alloc", 1)
+		// Memory.alloc returns the address of the allocated object, which is now on top of the stack.
+		// Set `this` to the address of that allocated object.
+		ce.cw.WritePop(SEG_POINTER, 0)
+	} else if kw == "method" {
+		// If this is a method, it is implied that the first part of its body
+		// is code to set `this` to the address of the object that the method is being called on.
+		// Recall that the first argument of a method is always the object that the method is being called on.
+		// Therefore, we need to set `this` to the address of that object.
+		ce.cw.WritePush(SEG_ARG, 0)
+		ce.cw.WritePop(SEG_POINTER, 0)
+	}
+
+	// Now that function has been declared, and any implicit constructor code written, write its body.
 	if err = ce.compileStatements(); err != nil {
 		return SyntaxError(err)
 	}
@@ -555,6 +576,7 @@ func (ce *CompilationEngine) compileStatements() error {
 // (className | varName) '.' subroutineName '(' expressionList ')'
 func (ce *CompilationEngine) compileSubroutineCall() error {
 	var id1, id2, name string
+	var numArgs uint
 	var err error
 
 	// Store subroutineName | className | varName in id1
@@ -590,26 +612,66 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 		}
 	}
 
-	if id2 != "" {
-		// (className | varName) '.' subroutineName '(' expressionList ')'
-		// call in the form of id.func()
-		name = id1 + "." + id2
-		// TODO: check if this is varName and retrieve its type from the symbol table in order to invoke the function
-	} else {
-		// subroutineName '(' expressionList ')'
-		// call in the form of func()
-		name = id1
-	}
-
 	if err := ce.checkForSymbol("("); err != nil {
 		return SyntaxError(err)
 	}
 
-	nArgs, err := ce.compileExpressionList()
+	if id2 != "" {
+		// (className | varName) '.' subroutineName '(' expressionList ')'
+		// check if id1 is a varName
+		_type, err := ce.st.TypeOf(id1)
+		if err == nil {
+			// We have a type for id1 in the symbol table, from which we can infer that it's a varName.
+			// Ergo we're dealing with a method call here, meaning that we need to push the object that's
+			// being called on to the stack, and then call the method on that object:
+
+			// First, we need to get the index of the object in the symbol table
+			index, err := ce.st.IndexOf(id1)
+			if err != nil {
+				return SyntaxError(err)
+			}
+			// Then we need to push the object onto the stack
+			kind, err := ce.st.KindOf(id1)
+			if err != nil {
+				return SyntaxError(err)
+			}
+			ce.cw.WritePush(kindToSegment(kind), index)
+			// Then we need to increment the number of arguments we're going to use to call the method
+			// by 1, since we're pushing the object onto the stack as the first argument.
+			numArgs += 1
+
+			// And we need to prepend the class name of the type of id1 to the method name,
+			// since all VM methods are "fully qualified".
+			name = _type + "." + id2
+		} else {
+			// if not a varName, then we assume it's a function call
+			// just call it as written, e.g. "Math.max()" -> "Math.max"
+			name = id1 + "." + id2
+		}
+	} else {
+		// subroutineName '(' expressionList ')'
+		// This is a call in the form of func(), which means that it's
+		// a method call of the class we're currently in. (Recall: functions
+		// and constructors must be called with their full className.subroutineName()
+		// syntax in Jack.)
+		//
+		// Since we must be within a method or constructor of this class, we can assume
+		// that THIS is already set to the object that the method is being called on.
+		// Therefore, we need to push that onto the stack as the first rgument of this method call.
+		ce.cw.WritePush(SEG_POINTER, 0)
+		// And we need to increment the number of arguments we're going to use to call the method
+		// by 1, since we're pushing the object onto the stack as the first argument.
+		numArgs += 1
+		// Next we set the name to be the className of the class we're currently in
+		// plus the subroutineName, e.g. "Square.draw", since all VM methods are "fully qualified".
+		name = ce.className + "." + id1
+	}
+
+	numParams, err := ce.compileExpressionList()
 	if err != nil {
 		return SyntaxError(err)
 	}
-	ce.cw.WriteCall(name, nArgs)
+	ce.cw.WriteCall(name, numArgs+numParams)
 
 	if err := ce.checkForSymbol(")"); err != nil {
 		return SyntaxError(err)
@@ -720,7 +782,6 @@ func (ce *CompilationEngine) compileLet() error {
 		ce.cw.WritePop(SEG_ARG, index)
 	case KIND_FIELD:
 		ce.cw.WritePop(SEG_THIS, index)
-		panic("setting `this` is not implemented yet")
 	default:
 		panic("invalid Kind")
 	}
@@ -1030,9 +1091,10 @@ func (ce *CompilationEngine) compileTerm() error {
 			ce.cw.WriteArithmetic(COM_NEG)
 		case "false":
 			ce.cw.WritePush(SEG_CONST, 0)
-		case "null":
 		case "this":
-			panic("null/this is not implemented yet")
+			ce.cw.WritePush(SEG_POINTER, 0)
+		case "null":
+			panic("=this is not implemented yet")
 		default:
 			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
@@ -1138,6 +1200,8 @@ func kindToSegment(kind Kind) Segment {
 		return SEG_LOCAL
 	case KIND_ARG:
 		return SEG_ARG
+	case KIND_FIELD:
+		return SEG_THIS
 	default:
 		panic(fmt.Sprintf("kindToSegment not implemented for kind %v", kind))
 	}

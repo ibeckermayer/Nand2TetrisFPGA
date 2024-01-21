@@ -22,7 +22,7 @@ Tests TODO:
 
 - ~Seven~
 - ~ConvertToBin~
-- Square
+- ~Square~
 - Average
 - Pong
 - ComplexArrays

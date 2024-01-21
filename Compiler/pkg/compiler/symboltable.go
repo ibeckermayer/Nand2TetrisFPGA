@@ -9,7 +9,6 @@ const (
 	KIND_FIELD  Kind = "field"
 	KIND_ARG    Kind = "arg"
 	KIND_VAR    Kind = "var"
-	KIND_NONE   Kind = "none"
 )
 
 // Entry is an entry in the symbol table
@@ -99,7 +98,10 @@ func (s *SymbolTable) VarCount(kind Kind) uint {
 	return s.varCount[kind]
 }
 
-// Returns the kind of the named identifier in the given scope
+// Returns the kind of the named identifier in the given scope.
+// Returns an error only if the identifier is unknown in the current scope,
+// the caller is responsible for interpreting that as they wish given the
+// context of the call.
 func (s *SymbolTable) KindOf(name string) (Kind, error) {
 	var kind Kind
 	subroutineTable := *s.table[KIND_ARG]
@@ -117,7 +119,7 @@ func (s *SymbolTable) KindOf(name string) (Kind, error) {
 		return kind, nil
 	}
 
-	// If nothing was found in either table return KIND_NONE
+	// If nothing was found in either table return an error
 	return "", fmt.Errorf("identifier %v was not found in any scope", name)
 }
 
