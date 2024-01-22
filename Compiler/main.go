@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -29,7 +30,8 @@ func main() {
 	// First argument should be .jack file or directory of .jack files. Currently
 	// do not support multiple directory builds.
 	if len(os.Args) < 2 {
-		panic("program requires the first argument be a path to .jack file or directory that contains at least one .jack file")
+		fmt.Printf("program requires the first argument be a path to .jack file or directory that contains at least one .jack file")
+		os.Exit(1)
 	}
 	toCompile := os.Args[1]
 	var files []string
@@ -46,10 +48,12 @@ func main() {
 		}
 		return nil
 	}); err != nil {
-		panic(err.Error())
+		log.Printf("%v", err)
+		os.Exit(1)
 	}
 	if len(files) == 0 {
-		panic(fmt.Sprintf("invalid compilation input: \"%v\"; first argument must be either a .jack file or a directory with at least one .jack file in it", toCompile))
+		log.Printf("invalid compilation input: \"%v\"; first argument must be either a .jack file or a directory with at least one .jack file in it", toCompile)
+		os.Exit(1)
 	}
 
 	// for each jack file
@@ -57,7 +61,8 @@ func main() {
 		ce, err := compiler.NewCompilationEngine(filePath)
 		err = ce.Run()
 		if err != nil {
-			panic(err)
+			log.Printf("Error running the compilation engine: %v", err)
+			os.Exit(1)
 		}
 	}
 }

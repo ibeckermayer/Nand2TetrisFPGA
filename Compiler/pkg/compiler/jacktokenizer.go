@@ -21,17 +21,6 @@ const (
 	identifier = TokenType("IDENTIFIER")
 )
 
-// InvalidAccessError is returned when the caller attempted to access on type of lexical element when the tokenizer was at another
-type InvalidAccessError struct {
-	wasAttempted TokenType // Type the caller attempted to access
-	wasValid     TokenType // Type the tokenizer was able to access
-	wasValidVal  string    // The value of the valid token
-}
-
-func (e *InvalidAccessError) Error() string {
-	return fmt.Sprintf("expected a token of type `%v` but found a token \"%v\" of type `%v` instead", e.wasAttempted, e.wasValidVal, e.wasValid)
-}
-
 func (jt *JackTokenizer) getValidVal() string {
 	switch jt.tokenType {
 	case symbol:
@@ -261,7 +250,7 @@ func (jt *JackTokenizer) TokenType() TokenType {
 // Symbol returns the raw token if TokenType is symbol
 func (jt *JackTokenizer) Symbol() (string, error) {
 	if jt.tokenType != symbol {
-		return "", jt.newInvalidAccessError(symbol)
+		return "", TraceError(jt.newInvalidAccessError(symbol))
 	}
 	return jt.symbol, nil
 }
@@ -269,7 +258,7 @@ func (jt *JackTokenizer) Symbol() (string, error) {
 // IntVal returns the raw token if TokenType is intConst
 func (jt *JackTokenizer) IntVal() (uint, error) {
 	if jt.tokenType != intConst {
-		return 0, jt.newInvalidAccessError(intConst)
+		return 0, TraceError(jt.newInvalidAccessError(intConst))
 	}
 	return jt.intVal, nil
 
@@ -278,7 +267,7 @@ func (jt *JackTokenizer) IntVal() (uint, error) {
 // StringVal returns the raw token if TokenType is strConst
 func (jt *JackTokenizer) StringVal() (string, error) {
 	if jt.tokenType != strConst {
-		return "", jt.newInvalidAccessError(strConst)
+		return "", TraceError(jt.newInvalidAccessError(strConst))
 	}
 	return jt.stringVal, nil
 
@@ -287,7 +276,7 @@ func (jt *JackTokenizer) StringVal() (string, error) {
 // KeyWord returns the raw token if TokenType is keyWord
 func (jt *JackTokenizer) KeyWord() (string, error) {
 	if jt.tokenType != keyWord {
-		return "", jt.newInvalidAccessError(keyWord)
+		return "", TraceError(jt.newInvalidAccessError(keyWord))
 	}
 	return jt.keyWord, nil
 
@@ -296,7 +285,7 @@ func (jt *JackTokenizer) KeyWord() (string, error) {
 // Identifier returns the raw token if TokenType is identifier
 func (jt *JackTokenizer) Identifier() (string, error) {
 	if jt.tokenType != identifier {
-		return "", jt.newInvalidAccessError(identifier)
+		return "", TraceError(jt.newInvalidAccessError(identifier))
 	}
 	return jt.identifier, nil
 
@@ -314,32 +303,32 @@ func (jt *JackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 		elemName = "symbol"
 		data, err = jt.Symbol()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 	case intConst:
 		elemName = "integerConstant"
 		intData, err := jt.IntVal()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 		data = strconv.Itoa(int(intData))
 	case strConst:
 		elemName = "stringConstant"
 		data, err = jt.StringVal()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 	case keyWord:
 		elemName = "keyword"
 		data, err = jt.KeyWord()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 	case identifier:
 		elemName = "identifier"
 		data, err = jt.Identifier()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 	}
 
@@ -350,5 +339,5 @@ func (jt *JackTokenizer) MarshalXML(e *xml.Encoder, _ xml.StartElement) error {
 	err = e.EncodeToken(xml.CharData(charData))
 	err = e.EncodeToken(xml.EndElement{Name: xml.Name{Space: "", Local: elemName}})
 
-	return err
+	return TraceError(err)
 }

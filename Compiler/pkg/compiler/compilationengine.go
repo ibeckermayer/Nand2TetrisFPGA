@@ -3,27 +3,9 @@ package compiler
 import (
 	"errors"
 	"fmt"
-	"log"
-	"runtime"
 )
 
 var DEBUG = false
-
-// SyntaxError logs the function name, file, and line number
-func SyntaxError(err error) error {
-	if err != nil {
-		// notice that we're using 1, so it will actually log the where
-		// the error happened, 0 = this function, we don't want that.
-		pc, fn, line, _ := runtime.Caller(1)
-
-		if DEBUG {
-			log.Printf("[error] in %s[%s:%d] %v", runtime.FuncForPC(pc).Name(), fn, line, err)
-		}
-
-		return err
-	}
-	return nil
-}
 
 // CompilationEngine effects the actual compilation output.
 // Gets its input from a JackTokenizer and emits its parsed structure into an output file/stream.
@@ -78,7 +60,7 @@ func (ce *CompilationEngine) Run() error {
 
 	// Advance to eat the first token and call compileClass, which will recursively compile the entire file
 	if err := ce.advance(); err != nil {
-		return err
+		return TraceError(err)
 	}
 
 	return ce.compileClass()
@@ -97,47 +79,39 @@ func (ce *CompilationEngine) advance() error {
 func (ce *CompilationEngine) compileClass() error {
 	// Check that first token is "class"
 	if err := ce.checkForKeyword("class"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	if err := ce.advance(); err != nil {
-		return err
+		return TraceError(err)
 	}
 
 	// Check that next token is an identifier
 	className, err := ce.jt.Identifier()
 	if err != nil {
-		return err
+		return TraceError(err)
 	}
 
 	// set className for function naming
 	ce.className = className
 
 	if err := ce.advance(); err != nil {
-		return err
+		return TraceError(err)
 	}
 
 	// Check that next token is "{"
-	if err := ce.checkForSymbol("{"); err != nil {
-		return SyntaxError(err)
-	}
-
-	if err := ce.advance(); err != nil {
-		return err
+	if err := ce.eatSymbol("{"); err != nil {
+		return TraceError(err)
 	}
 
 	// Loop through and compile all of the classVarDecs
 	for kw, err := ce.jt.KeyWord(); kw == "static" || kw == "field"; kw, err = ce.jt.KeyWord() {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		if err := ce.compileClassVarDec(); err != nil {
-			return SyntaxError(err)
-		}
-
-		if err := ce.advance(); err != nil {
-			return err
+			return TraceError(err)
 		}
 	}
 
@@ -145,53 +119,69 @@ func (ce *CompilationEngine) compileClass() error {
 	// The previous loop will have called Advance() and then hit a non static/field
 	for kw, err := ce.jt.KeyWord(); kw == "constructor" || kw == "function" || kw == "method"; kw, err = ce.jt.KeyWord() {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		if err := ce.compileSubroutine(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
-		if err := ce.advance(); err != nil {
-			return err
-		}
 	}
 
 	// Check that next token is "}"
 	// The previous loop should have called Advance() for this symbol
 	if err := ce.checkForSymbol("}"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	return nil
 }
 
-// 'void | 'int' | 'char' | 'boolean' | className
+// getVoidOrType gets the current token as a void or type ('void | 'int' | 'char' | 'boolean' | className)
+// and advances the tokenizer. Returns an error if the current token is not a void or type.
 func (ce *CompilationEngine) getVoidOrType() (string, error) {
 	if kw, err := ce.jt.KeyWord(); kw == "void" {
+		if err := ce.advance(); err != nil {
+			return "", err
+		}
 		return kw, err
 	}
+
 	return ce.getType()
+
 }
 
-// 'int' | 'char' | 'boolean' | className
-// check for a type and return the string
+// getType checks for a type ('int' | 'char' | 'boolean' | className) and returns the string,
+// advancing the tokenizer. Returns an error if the current token is not a type.
 func (ce *CompilationEngine) getType() (string, error) {
 	var errString string = "expected a type: %v className or %v \"int\" or \"char\" or \"boolean\""
+	var err error
+	var type_ string
 
 	switch ce.jt.TokenType() {
 	case keyWord:
-		kw, _ := ce.jt.KeyWord()
-		if !(kw == "int" || kw == "char" || kw == "boolean") {
-			return "", SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+		type_, err = ce.jt.KeyWord()
+		if err != nil {
+			return "", TraceError(err)
 		}
-		return kw, nil
+		if !(type_ == "int" || type_ == "char" || type_ == "boolean") {
+			return "", TraceError(fmt.Errorf(errString, identifier, keyWord))
+		}
 	case identifier:
-		id, _ := ce.jt.Identifier()
-		return id, nil
+		type_, err = ce.jt.Identifier()
+		if err != nil {
+			return "", TraceError(err)
+		}
 	default:
-		return "", SyntaxError(fmt.Errorf(errString, identifier, keyWord))
+		return "", TraceError(fmt.Errorf(errString, identifier, keyWord))
 	}
+
+	err = ce.advance()
+	if err != nil {
+		return "", err
+	}
+
+	return type_, err
 }
 
 // ('static' | 'field') type varName (',' varName)* ';'
@@ -201,122 +191,109 @@ func (ce *CompilationEngine) compileClassVarDec() error {
 
 	// get type
 	if err := ce.advance(); err != nil {
-		return err
+		return TraceError(err)
 	}
 	type_, err := ce.getType()
 	if err != nil {
-		return err
+		return TraceError(err)
 	}
 
-	// Check for varName
-	if err := ce.advance(); err != nil {
-		return err
-	}
 	name, err := ce.getVarName()
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// Define a new entry in the symbol table
 	ce.st.Define(name, type_, Kind(kind))
 
 	// Check for a comma separated list of more varNames
-	if err := ce.advance(); err != nil {
-		return err
-	}
 	for sym, err := ce.jt.Symbol(); sym == ","; sym, err = ce.jt.Symbol() {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		// Get name
 		if err := ce.advance(); err != nil {
-			return err
+			return TraceError(err)
 		}
 		name, err := ce.getVarName()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		ce.st.Define(name, type_, Kind(kind))
-
-		if err := ce.advance(); err != nil {
-			return err
-		}
 	}
 
 	// Should wind up at a ";"
-	if err := ce.checkForSymbol(";"); err != nil {
-		return SyntaxError(err)
+	if err := ce.eatSymbol(";"); err != nil {
+		return TraceError(err)
 	}
 
 	return nil
 }
 
-// ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
-func (ce *CompilationEngine) compileSubroutine() error {
-	// Clear the subroutine table
-	ce.st.StartSubroutine()
+func (ce *CompilationEngine) getIntVal() (uint, error) {
+	i, err := ce.jt.IntVal()
+	if err != nil {
+		return 0, TraceError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return 0, err
+	}
+	return i, nil
+}
 
-	// kw is one of "constructor" or "function" or "method"
+// getKeyWord gets the current token as a keyword and advances the tokenizer.
+// Returns an error if the current token is not a keyword.
+func (ce *CompilationEngine) getKeyWord() (string, error) {
 	kw, err := ce.jt.KeyWord()
 	if err != nil {
-		return SyntaxError(err)
+		return "", TraceError(err)
 	}
-
 	if err := ce.advance(); err != nil {
-		return err
+		return "", err
 	}
+	return kw, nil
+}
 
-	// Get a ('void' | type)
-	_, err = ce.getVoidOrType()
+// getIdentifier gets the current token as an identifier and advances the tokenizer.
+// Returns an error if the current token is not an identifier.
+func (ce *CompilationEngine) getIdentifier() (string, error) {
+	id, err := ce.jt.Identifier()
 	if err != nil {
-		return err
+		return "", TraceError(err)
 	}
-
-	// Get the subroutineName
 	if err := ce.advance(); err != nil {
-		return err
+		return "", err
 	}
-	subroutineName, err := ce.jt.Identifier()
-	if err != nil {
-		return SyntaxError(err)
+	return id, nil
+}
+
+// '{' varDec* statements '}'
+//
+// subKind must be one of "constructor" or "function" or "method", and subName must be the name of the subroutine
+func (ce *CompilationEngine) compileSubroutineBody(subKind string, subName string) error {
+	var err error
+
+	if subKind != "constructor" && subKind != "function" && subKind != "method" {
+		return TraceError(fmt.Errorf("expected a subroutine kind: \"constructor\" or \"function\" or \"method\""))
 	}
 
-	// Eat the subroutineName
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
-
-	if err := ce.compileParameterList(); err != nil {
-		return SyntaxError(err)
-	}
-
-	// subroutineBody: '{' varDec* statements '}'
-
-	// Eat what should be a "{"
-	if err = ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
-	if err = ce.checkForSymbol("{"); err != nil {
-		return SyntaxError(err)
-	}
-	// Eat the "{"
-	if err = ce.advance(); err != nil {
-		return SyntaxError(err)
+	if err = ce.eatSymbol("{"); err != nil {
+		return TraceError(err)
 	}
 
 	// varDec*
 	if err := ce.compileVarDecs(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// Now that all the vars have been declared, we know how to declare the vm code function
-	ce.cw.WriteFunction(ce.className+"."+subroutineName, ce.st.VarCount(KIND_VAR))
+	ce.cw.WriteFunction(ce.className+"."+subName, ce.st.VarCount(KIND_VAR))
 
 	// If this is a constructor, it is implied that the first part of its body
 	// is code to allocate memory for the object and set `this` to the address of that object
-	if kw == "constructor" {
+	if subKind == "constructor" {
 		// All of Jack's data types are 16-bits (1 word) long, so the size of an object is simply the number of fields it has.
 		// (If an field is another object, then it's simply a pointer to that object which is 16-bits long.)
 		objectSize := ce.st.VarCount(KIND_FIELD)
@@ -328,7 +305,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		// Memory.alloc returns the address of the allocated object, which is now on top of the stack.
 		// Set `this` to the address of that allocated object.
 		ce.cw.WritePop(SEG_POINTER, 0)
-	} else if kw == "method" {
+	} else if subKind == "method" {
 		// If this is a method, it is implied that the first part of its body
 		// is code to set `this` to the address of the object that the method is being called on.
 		// Recall that the first argument of a method is always the object that the method is being called on.
@@ -337,13 +314,47 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		ce.cw.WritePop(SEG_POINTER, 0)
 	}
 
-	// Now that function has been declared, and any implicit constructor code written, write its body.
+	// Now that subroutine has been declared, and any implicit constructor code written, write its body.
 	if err = ce.compileStatements(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
-	if err = ce.checkForSymbol("}"); err != nil {
-		return SyntaxError(err)
+	if err = ce.eatSymbol("}"); err != nil {
+		return TraceError(err)
+	}
+
+	return nil
+}
+
+// ('constructor' | 'function' | 'method') ('void' | type) subroutineName '(' parameterList ')' subroutineBody
+func (ce *CompilationEngine) compileSubroutine() error {
+	// Clear the subroutine table
+	ce.st.StartSubroutine()
+
+	// subKind is one of "constructor" or "function" or "method"
+	subKind, err := ce.getKeyWord()
+	if err != nil {
+		return TraceError(err)
+	}
+
+	// Get a ('void' | type)
+	_, err = ce.getVoidOrType()
+	if err != nil {
+		return TraceError(err)
+	}
+
+	// Get the subroutineName
+	subroutineName, err := ce.getIdentifier()
+	if err != nil {
+		return TraceError(err)
+	}
+
+	if err := ce.compileParameterList(); err != nil {
+		return TraceError(err)
+	}
+
+	if err := ce.compileSubroutineBody(subKind, subroutineName); err != nil {
+		return TraceError(err)
 	}
 
 	return nil
@@ -357,31 +368,31 @@ func (ce *CompilationEngine) compileVarDecs() error {
 	// varDec*
 	for kw, _ := ce.jt.KeyWord(); kw == "var"; kw, _ = ce.jt.KeyWord() {
 		if err = ce.compileVarDec(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		// compiled a varDec, advance and try again or move on
-		if err = ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
 	}
 	return nil
 }
 
-// checks that token is identifier and returns it, or a error
+// checks that token is identifier and returns it, or a error,
+// and advances the tokenizer.
 func (ce *CompilationEngine) getVarName() (string, error) {
 	id, err := ce.jt.Identifier()
 	if err != nil {
-		return "", SyntaxError(fmt.Errorf("Expected an %v for the varName", identifier))
+		return "", TraceError(fmt.Errorf("Expected an %v for the varName", identifier))
+	}
+	if err := ce.advance(); err != nil {
+		return "", err
 	}
 	return id, nil
-
 }
 
 // checkForIdentifier checks that the current token is an identifier
 func (ce *CompilationEngine) checkForIdentifier() error {
 	// Next should be a varName
 	if ce.jt.TokenType() != identifier {
-		return SyntaxError(fmt.Errorf("Expected an %v", identifier))
+		return TraceError(fmt.Errorf("Expected an %v", identifier))
 	}
 	return nil
 }
@@ -390,9 +401,9 @@ func (ce *CompilationEngine) checkForIdentifier() error {
 func (ce *CompilationEngine) checkForSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
-		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", symbol, sym))
+		return TraceError(fmt.Errorf("expected the %v \"%v\"", symbol, sym))
 	}
 
 	return nil
@@ -401,21 +412,43 @@ func (ce *CompilationEngine) checkForSymbol(sym string) error {
 func (ce *CompilationEngine) checkForKeyword(kw string) error {
 	if k, err := ce.jt.KeyWord(); k != kw {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
-		return SyntaxError(fmt.Errorf("expected the %v \"%v\"", keyWord, kw))
+		return TraceError(fmt.Errorf("expected the %v \"%v\"", keyWord, kw))
 	}
 
 	return nil
 }
 
-// '(' ((type varName)(',' type varName)*)? ')'
-func (ce *CompilationEngine) compileParameterList() error {
-	if err := ce.checkForSymbol("("); err != nil {
-		return SyntaxError(err)
+// eatKeyword checks that the passed keyword is currently being parsed, and advances the tokenizer.
+// Returns an error if the current token is not the passed keyword.
+func (ce *CompilationEngine) eatKeyword(kw string) error {
+	if err := ce.checkForKeyword(kw); err != nil {
+		return TraceError(err)
 	}
 	if err := ce.advance(); err != nil {
-		return err
+		return TraceError(err)
+	}
+	return nil
+
+}
+
+// eatSymbol checks that the passed symbol is currently being parsed, and advances the tokenizer.
+// Returns an error if the current token is not the passed symbol.
+func (ce *CompilationEngine) eatSymbol(sym string) error {
+	if err := ce.checkForSymbol(sym); err != nil {
+		return TraceError(err)
+	}
+	if err := ce.advance(); err != nil {
+		return TraceError(err)
+	}
+	return nil
+}
+
+// '(' ((type varName)(',' type varName)*)? ')'
+func (ce *CompilationEngine) compileParameterList() error {
+	if err := ce.eatSymbol("("); err != nil {
+		return TraceError(err)
 	}
 
 	// While we have yet to hit the closing ")"
@@ -423,21 +456,12 @@ func (ce *CompilationEngine) compileParameterList() error {
 		// First token should be a type
 		type_, err := ce.getType()
 		if err != nil {
-			return err
+			return TraceError(err)
 		}
 
-		// Next should be a varName
-		if err := ce.advance(); err != nil {
-			return err
-		}
 		name, err := ce.getVarName()
 		if err != nil {
-			return SyntaxError(err)
-		}
-
-		// Eat the varName token
-		if err := ce.advance(); err != nil {
-			return err
+			return TraceError(err)
 		}
 
 		// Define the parameter in the symbol table
@@ -447,19 +471,19 @@ func (ce *CompilationEngine) compileParameterList() error {
 		if err := ce.checkForSymbol(","); err == nil {
 			// if we're at the ",", advance and run through another round of the loop
 			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 			// but first check that we didn't bump immediately into a ")", which would be invalid
 			if err := ce.checkForSymbol(")"); err == nil {
-				return SyntaxError(fmt.Errorf("invalid syntax \",)\""))
+				return TraceError(fmt.Errorf("invalid syntax \",)\""))
 			}
 		}
 		// Else we were at a ")", let the loop break and check for that
 	}
 
 	// Now we should be at the closing ")"
-	if err := ce.checkForSymbol(")"); err != nil {
-		return SyntaxError(err)
+	if err := ce.eatSymbol(")"); err != nil {
+		return TraceError(err)
 	}
 
 	return nil
@@ -469,57 +493,42 @@ func (ce *CompilationEngine) compileParameterList() error {
 func (ce *CompilationEngine) compileVarDec() error {
 	// check for var
 	if err := ce.checkForKeyword("var"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// Advance and get type
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	type_, err := ce.getType()
 	if err != nil {
-		return err
+		return TraceError(err)
 	}
 
-	// Advance and get varName
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
 	name, err := ce.getVarName()
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// Add this var to symbol table
 	ce.st.Define(name, type_, KIND_VAR)
 
-	// Now advance again and see if there's a (',' varName)*
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
-	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
+	// Now see if there's a (',' varName)*
+	for err = ce.eatSymbol(","); err == nil; err = ce.eatSymbol(",") {
 		// (',' varName)*
-		// Advance and check for "varName"
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
+		// check for "varName"
 		name, err := ce.getVarName()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		// Add this var to symbol table as well
 		ce.st.Define(name, type_, KIND_VAR)
-
-		// Advance to either the next "," and repeat the loop, or break and check for ";"
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
 	}
 
 	// Check for ";"
-	if err := ce.checkForSymbol(";"); err != nil {
-		return SyntaxError(err)
+	if err := ce.eatSymbol(";"); err != nil {
+		return TraceError(err)
 	}
 
 	return nil
@@ -537,7 +546,7 @@ func isSatementKeyword(kw string) bool {
 func (ce *CompilationEngine) compileStatements() error {
 	for kw, err := ce.jt.KeyWord(); isSatementKeyword(kw); kw, err = ce.jt.KeyWord() {
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
 		// Each of the following compileX() functions should eat their final character before returning
@@ -546,26 +555,26 @@ func (ce *CompilationEngine) compileStatements() error {
 		switch kw {
 		case "let":
 			if err := ce.compileLet(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		case "if":
 			if err := ce.compileIf(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		case "while":
 			if err := ce.compileWhile(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		case "do":
 			if err := ce.compileDo(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		case "return":
 			if err := ce.compileReturn(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		default:
-			return SyntaxError(fmt.Errorf("unexpected error in compileStatements, should be impossible"))
+			return TraceError(fmt.Errorf("unexpected error in compileStatements, should be impossible"))
 		}
 	}
 
@@ -582,42 +591,39 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 	// Store subroutineName | className | varName in id1
 	id1, err = ce.jt.Identifier()
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	var sym string
 	sym, err = ce.jt.Symbol() // either a "." or a "("
 	if err != nil {
-		return SyntaxError(fmt.Errorf("expected a \".\" or \"(\""))
-	}
-	if sym == "." {
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
-		// id1 is className || varName, store subroutineName in id2
-		id2, err = ce.jt.Identifier()
-		if err != nil {
-			return SyntaxError(err)
-		}
-		// advance and set external scope's sym variable to the next sym, which ought to be a "("
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
-		sym, err = ce.jt.Symbol() // should be a "(" (checked outside this if statement)
-		if err != nil {
-			return SyntaxError(fmt.Errorf("expected a \".\" or \"(\""))
-		}
+		return TraceError(fmt.Errorf("expected a \".\" or \"(\""))
 	}
 
-	if err := ce.checkForSymbol("("); err != nil {
-		return SyntaxError(err)
+	// If we're at a ".", then we're dealing with a className | varName for id1
+	if sym == "." {
+		// Eat the "."
+		if err := ce.advance(); err != nil {
+			return TraceError(err)
+		}
+		// store subroutineName in id2
+		id2, err = ce.getIdentifier()
+		if err != nil {
+			return TraceError(err)
+		}
+
+	}
+
+	// Now we should be at a "("
+	if err = ce.eatSymbol("("); err != nil {
+		return TraceError(err)
 	}
 
 	if id2 != "" {
-		// (className | varName) '.' subroutineName '(' expressionList ')'
+		// (className | varName) '.' subroutineName
 		// check if id1 is a varName
 		_type, err := ce.st.TypeOf(id1)
 		if err == nil {
@@ -628,12 +634,12 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 			// First, we need to get the index of the object in the symbol table
 			index, err := ce.st.IndexOf(id1)
 			if err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 			// Then we need to push the object onto the stack
 			kind, err := ce.st.KindOf(id1)
 			if err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 			ce.cw.WritePush(kindToSegment(kind), index)
 			// Then we need to increment the number of arguments we're going to use to call the method
@@ -649,7 +655,7 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 			name = id1 + "." + id2
 		}
 	} else {
-		// subroutineName '(' expressionList ')'
+		// subroutineName
 		// This is a call in the form of func(), which means that it's
 		// a method call of the class we're currently in. (Recall: functions
 		// and constructors must be called with their full className.subroutineName()
@@ -669,12 +675,13 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 
 	numParams, err := ce.compileExpressionList()
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
+
 	ce.cw.WriteCall(name, numArgs+numParams)
 
-	if err := ce.checkForSymbol(")"); err != nil {
-		return SyntaxError(err)
+	if err := ce.eatSymbol(")"); err != nil {
+		return TraceError(err)
 	}
 
 	return nil
@@ -684,21 +691,16 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 // Eats it's own final character, so caller needn't immediately call advance() upon this function returning
 func (ce *CompilationEngine) compileDo() error {
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.compileSubroutineCall(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+
+	if err := ce.eatSymbol(";"); err != nil {
+		return TraceError(err)
 	}
-	if err := ce.checkForSymbol(";"); err != nil {
-		return SyntaxError(err)
-	}
-	// eat own final character
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
+
 	// after a `do funcCall()` there will be a value on top of the stack that we aren't using, so pop that to temp
 	ce.cw.WritePop(SEG_TEMP, 0)
 	return nil
@@ -710,67 +712,64 @@ func (ce *CompilationEngine) compileLet() error {
 	var err error
 
 	if err = ce.checkForKeyword("let"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// advance and get varName
 	if err = ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	varName, err := ce.getVarName()
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
-	// advance and check for '['
-	if err = ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
+	// check for '['
 	var sym string
 	if sym, err = ce.jt.Symbol(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if sym == "[" {
 		// TODO
 		if err := ce.checkForSymbol("["); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		// eat the '[' and compile expression
 		if err = ce.advance(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		if err = ce.compileExpression(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		if err := ce.checkForSymbol("]"); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		if err = ce.advance(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 	}
 
 	// demand, compile, and eat '='
 	if err = ce.checkForSymbol("="); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err = ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// compile expression, whose result will wind up on the top of the stack
 	if err = ce.compileExpression(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// pop the expression result into its corresponding variable
 	kind, err := ce.st.KindOf(varName)
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	index, err := ce.st.IndexOf(varName)
 	if err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	switch kind {
@@ -788,10 +787,10 @@ func (ce *CompilationEngine) compileLet() error {
 
 	// check and eat ";"
 	if err = ce.checkForSymbol(";"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	return nil
 }
@@ -809,20 +808,20 @@ func (ce *CompilationEngine) compileWhile() error {
 	ce.cw.WriteLabel(startLabel)
 
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.checkForSymbol("("); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// compute the condition:
 	// if true then -1 will be on top of the stack,
 	// if false then 0 will be on top of the stack
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.compileExpression(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// Now bit-wise not whatever is on top of the stack and if-goto the endLabel
@@ -834,32 +833,32 @@ func (ce *CompilationEngine) compileWhile() error {
 	ce.cw.WriteIf(endLabel)
 
 	if err := ce.checkForSymbol(")"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.checkForSymbol("{"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// compile the loop's internal logic
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.compileStatements(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// end of loop, jump back to the beggining
 	ce.cw.WriteGoto(startLabel)
 
 	if err := ce.checkForSymbol("}"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// place the end label at the bottom of the loop in order to escape it
@@ -879,21 +878,21 @@ func (ce *CompilationEngine) compileWhile() error {
 func (ce *CompilationEngine) compileReturn() error {
 	// advance and check for ';'
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	// if not ';', should be an expression
 	if sym, _ := ce.jt.Symbol(); sym != ";" {
 		if err := ce.compileExpression(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 	}
 	// now compile the ';'
 	if err := ce.checkForSymbol(";"); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	// eat own final character
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	ce.cw.WriteReturn()
 	return nil
@@ -912,40 +911,34 @@ func (ce *CompilationEngine) compileIf() error {
 	// this chunk of code is used in regular if and if-else, so abstracted into an internal
 	// function to avoid having it written twice
 	compileStatementsSubsection := func() error {
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
-		if err := ce.checkForSymbol("{"); err != nil {
-			return SyntaxError(err)
+		if err := ce.eatSymbol("{"); err != nil {
+			return TraceError(err)
 		}
 
-		if err := ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
 		if err := ce.compileStatements(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 
-		// compileStatements loops us to next token so no need to call advance()
-		if err := ce.checkForSymbol("}"); err != nil {
-			return SyntaxError(err)
+		if err := ce.eatSymbol("}"); err != nil {
+			return TraceError(err)
 		}
+
 		return nil
 	}
 
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.checkForSymbol("("); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// compute condition
 	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 	if err := ce.compileExpression(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// negate the conditional result on the top of the stack, so that the subsequent
@@ -957,12 +950,12 @@ func (ce *CompilationEngine) compileIf() error {
 	ce.cw.WriteIf(elseLabel)
 
 	// compileExpression loops us to next token so no need to call advance()
-	if err := ce.checkForSymbol(")"); err != nil {
-		return SyntaxError(err)
+	if err := ce.eatSymbol(")"); err != nil {
+		return TraceError(err)
 	}
 
 	if err := compileStatementsSubsection(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// if condition was true and statement was executed, so skip the else by jumping to the end label
@@ -973,25 +966,14 @@ func (ce *CompilationEngine) compileIf() error {
 	// (somewhat complicated story, see Figure 8.1 in the book and walk through the logic)
 	ce.cw.WriteLabel(elseLabel)
 
-	// advance and check for an else statement
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
-	}
 	if ce.jt.TokenType() == keyWord {
 		if kw, _ := ce.jt.KeyWord(); kw == "else" {
-			if err := ce.checkForKeyword("else"); err != nil {
-				return SyntaxError(err)
+			if err := ce.eatKeyword("else"); err != nil {
+				return TraceError(err)
 			}
 
 			if err := compileStatementsSubsection(); err != nil {
-				return SyntaxError(err)
-			}
-
-			// advance after the else is compiled, so that in both the if and if-else cases
-			// the function returns with the next token in the chamber (iow this function's api
-			// should be the same in both the if and if-else cases)
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 		}
 	}
@@ -1037,29 +1019,22 @@ func (ce *CompilationEngine) compileOp(sym string) {
 func (ce *CompilationEngine) compileExpression() error {
 	// compiles the first term and pushes its result onto the top of the stack
 	if err := ce.compileTerm(); err != nil {
-		return SyntaxError(err)
-	}
-
-	if err := ce.advance(); err != nil {
-		return SyntaxError(err)
+		return TraceError(err)
 	}
 
 	// (op term)*
 	for sym, err := ce.jt.Symbol(); isOp(sym) && err == nil; sym, err = ce.jt.Symbol() {
 		// op term
 		if err = ce.advance(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		// first term is on top of the stack,
 		// now compile the next term so that's on top of the first
 		if err = ce.compileTerm(); err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		// then apply the operation to the two terms at the top of the stack
 		ce.compileOp(sym)
-		if err = ce.advance(); err != nil {
-			return SyntaxError(err)
-		}
 	}
 
 	return nil
@@ -1070,20 +1045,23 @@ func (ce *CompilationEngine) compileExpression() error {
 // '(' expression ')' | unaryOp term
 func (ce *CompilationEngine) compileTerm() error {
 	if ce.jt.TokenType() == intConst {
-		intVal, err := ce.jt.IntVal()
+		intVal, err := ce.getIntVal()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		ce.cw.WritePush(SEG_CONST, intVal)
+		return nil
 	} else if ce.jt.TokenType() == strConst {
+		panic("string constants are not implemented yet")
 		_, err := ce.jt.StringVal()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
+		return nil
 	} else if ce.jt.TokenType() == keyWord {
-		kw, err := ce.jt.KeyWord()
+		kw, err := ce.getKeyWord()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		switch kw {
 		case "true":
@@ -1096,78 +1074,71 @@ func (ce *CompilationEngine) compileTerm() error {
 		case "null":
 			panic("=this is not implemented yet")
 		default:
-			return SyntaxError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
+			return TraceError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
+		return nil
 	} else if ce.jt.TokenType() == symbol {
 		// '(' expression ')' | unaryOp term
 		sym, err := ce.jt.Symbol()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
+		}
+		if err := ce.advance(); err != nil {
+			return TraceError(err)
 		}
 		if sym == "(" {
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
+			// '(' expression ')'
 			if err := ce.compileExpression(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
-			if err = ce.checkForSymbol(")"); err != nil {
-				return SyntaxError(err)
+			if err := ce.eatSymbol(")"); err != nil {
+				return TraceError(err)
 			}
 		} else if sym == "-" {
-			// Advance and push whatever is being negated to the top of the stack
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
+			// -term
+			// push whatever is being negated to the top of the stack
 			if err := ce.compileTerm(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 
 			// Negate it
 			ce.cw.WriteArithmetic(COM_NEG)
 		} else if sym == "~" {
-			// Advance and push whatever is being bit-wise not-ed to the top of the stack
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
+			// ~term
+			// push whatever is being bit-wise not-ed to the top of the stack
 			if err := ce.compileTerm(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 
 			// Bit-wise not it
 			ce.cw.WriteArithmetic(COM_NOT)
 		} else {
-			return SyntaxError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
+			return TraceError(fmt.Errorf("invalid symbol in term, symbol must be one of \"(\" or \"-\" or \"~\""))
 		}
+		return nil
 	} else if ce.jt.TokenType() == identifier {
 		// varName | varName '[' expression ']' | subroutineCall
 		var err error
 		var peeked byte
 		peeked, err = ce.jt.Peek()
 		if err != nil {
-			return SyntaxError(err)
+			return TraceError(err)
 		}
 		if peeked == '.' || peeked == '(' {
 			return ce.compileSubroutineCall()
 		} else if peeked == '[' {
 			_, err = ce.getVarName()
 			if err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
-			}
-			if err := ce.checkForSymbol("["); err != nil {
-				return SyntaxError(err)
-			}
-			if err := ce.advance(); err != nil {
-				return SyntaxError(err)
+			if err := ce.eatSymbol("["); err != nil {
+				return TraceError(err)
 			}
 			if err := ce.compileExpression(); err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
-			if err := ce.checkForSymbol("]"); err != nil {
-				return SyntaxError(err)
+			if err := ce.eatSymbol("]"); err != nil {
+				return TraceError(err)
 			}
 		} else {
 			// Else we are at a variable
@@ -1175,21 +1146,20 @@ func (ce *CompilationEngine) compileTerm() error {
 
 			kind, err := ce.st.KindOf(varName)
 			if err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 
 			index, err := ce.st.IndexOf(varName)
 			if err != nil {
-				return SyntaxError(err)
+				return TraceError(err)
 			}
 
 			ce.cw.WritePush(kindToSegment(kind), index)
 		}
+		return nil
 	} else {
-		return SyntaxError(fmt.Errorf("unknown error"))
+		return TraceError(fmt.Errorf("unknown error"))
 	}
-
-	return nil
 }
 
 func kindToSegment(kind Kind) Segment {
@@ -1212,29 +1182,29 @@ func kindToSegment(kind Kind) Segment {
 // Returns the number of ',' separated expressions that were compiled
 func (ce *CompilationEngine) compileExpressionList() (uint, error) {
 	var nArgs uint
-	// Advance and check if we are at a closing parenthesis
-	if err := ce.advance(); err != nil {
-		return nArgs, SyntaxError(err)
-	}
+
+	// Terminating condition: check if we are at a closing parenthesis
 	sym, _ := ce.jt.Symbol()
 	if ce.jt.TokenType() == symbol && sym == ")" {
 		// The next token was a closing parenthesis; the caller is expected to account for it
 		return nArgs, nil
 	}
 
-	// compile expression
+	// If we're not at a closing parenthesis, then we're at an expression
 	if err := ce.compileExpression(); err != nil {
-		return nArgs, SyntaxError(err)
+		return nArgs, TraceError(err)
 	}
+	// We've compiled one expression, so increment nArgs
 	nArgs++
+
 	// check for further expressions in the list
 	for sym, _ := ce.jt.Symbol(); sym == ","; sym, _ = ce.jt.Symbol() {
-		ce.checkForSymbol(sym)
-		if err := ce.advance(); err != nil {
-			return nArgs, SyntaxError(err)
+		if err := ce.eatSymbol(","); err != nil {
+			// Should be impossible to get here, since we already checked for a ","
+			panic("impossible")
 		}
 		if err := ce.compileExpression(); err != nil {
-			return nArgs, SyntaxError(err)
+			return nArgs, TraceError(err)
 		}
 		nArgs++
 	}
