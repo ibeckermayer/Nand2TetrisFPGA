@@ -295,7 +295,7 @@ func (ce *CompilationEngine) compileSubroutineBody(subKind string, subName strin
 	// is code to allocate memory for the object and set `this` to the address of that object
 	if subKind == "constructor" {
 		// All of Jack's data types are 16-bits (1 word) long, so the size of an object is simply the number of fields it has.
-		// (If an field is another object, then it's simply a pointer to that object which is 16-bits long.)
+		// (If a field is another object, then it's simply a pointer to that object which is 16-bits long.)
 		objectSize := ce.st.VarCount(KIND_FIELD)
 		// Allocate memory for the object:
 		// push objectSize onto the stack
@@ -380,7 +380,7 @@ func (ce *CompilationEngine) compileVarDecs() error {
 func (ce *CompilationEngine) getVarName() (string, error) {
 	id, err := ce.jt.Identifier()
 	if err != nil {
-		return "", TraceError(fmt.Errorf("Expected an %v for the varName", identifier))
+		return "", TraceError(fmt.Errorf("expected an %v for the varName", identifier))
 	}
 	if err := ce.advance(); err != nil {
 		return "", err
@@ -392,7 +392,7 @@ func (ce *CompilationEngine) getVarName() (string, error) {
 func (ce *CompilationEngine) checkForIdentifier() error {
 	// Next should be a varName
 	if ce.jt.TokenType() != identifier {
-		return TraceError(fmt.Errorf("Expected an %v", identifier))
+		return TraceError(fmt.Errorf("expected an %v", identifier))
 	}
 	return nil
 }
@@ -401,9 +401,9 @@ func (ce *CompilationEngine) checkForIdentifier() error {
 func (ce *CompilationEngine) checkForSymbol(sym string) error {
 	if s, err := ce.jt.Symbol(); s != sym {
 		if err != nil {
-			return TraceError(err)
+			return err
 		}
-		return TraceError(fmt.Errorf("expected the %v \"%v\"", symbol, sym))
+		return fmt.Errorf("expected the %v \"%v\"", symbol, sym)
 	}
 
 	return nil
@@ -437,10 +437,10 @@ func (ce *CompilationEngine) eatKeyword(kw string) error {
 // Returns an error if the current token is not the passed symbol.
 func (ce *CompilationEngine) eatSymbol(sym string) error {
 	if err := ce.checkForSymbol(sym); err != nil {
-		return TraceError(err)
+		return err
 	}
 	if err := ce.advance(); err != nil {
-		return TraceError(err)
+		return err
 	}
 	return nil
 }
@@ -729,31 +729,18 @@ func (ce *CompilationEngine) compileLet() error {
 	if sym, err = ce.jt.Symbol(); err != nil {
 		return TraceError(err)
 	}
+
+	// If we're at a "[", then we must be dealing with an array.
+	// In this case, we want to push the base address of the array (`varName`) onto the stack,
+	// and then add the index to that base address to get the address of the element we want to access.
 	if sym == "[" {
-		// TODO
-		if err := ce.checkForSymbol("["); err != nil {
-			return TraceError(err)
-		}
-		// eat the '[' and compile expression
-		if err = ce.advance(); err != nil {
-			return TraceError(err)
-		}
-		if err = ce.compileExpression(); err != nil {
-			return TraceError(err)
-		}
-		if err := ce.checkForSymbol("]"); err != nil {
-			return TraceError(err)
-		}
-		if err = ce.advance(); err != nil {
+		if err := ce.setThatForArrayAccess(varName); err != nil {
 			return TraceError(err)
 		}
 	}
 
 	// demand, compile, and eat '='
-	if err = ce.checkForSymbol("="); err != nil {
-		return TraceError(err)
-	}
-	if err = ce.advance(); err != nil {
+	if err = ce.eatSymbol("="); err != nil {
 		return TraceError(err)
 	}
 
@@ -762,36 +749,28 @@ func (ce *CompilationEngine) compileLet() error {
 		return TraceError(err)
 	}
 
-	// pop the expression result into its corresponding variable
-	kind, err := ce.st.KindOf(varName)
-	if err != nil {
-		return TraceError(err)
-	}
-	index, err := ce.st.IndexOf(varName)
-	if err != nil {
-		return TraceError(err)
-	}
+	if sym == "[" {
+		// pop the expression result into the THAT segment
+		ce.cw.WritePop(SEG_THAT, 0)
+	} else {
+		// pop the expression result into its corresponding variable
+		kind, err := ce.st.KindOf(varName)
+		if err != nil {
+			return TraceError(err)
+		}
+		index, err := ce.st.IndexOf(varName)
+		if err != nil {
+			return TraceError(err)
+		}
 
-	switch kind {
-	case KIND_VAR:
-		ce.cw.WritePop(SEG_LOCAL, index)
-	case KIND_STATIC:
-		ce.cw.WritePop(SEG_STATIC, index)
-	case KIND_ARG:
-		ce.cw.WritePop(SEG_ARG, index)
-	case KIND_FIELD:
-		ce.cw.WritePop(SEG_THIS, index)
-	default:
-		panic("invalid Kind")
+		ce.cw.WritePop(kindToSegment(kind), index)
 	}
 
 	// check and eat ";"
-	if err = ce.checkForSymbol(";"); err != nil {
+	if err = ce.eatSymbol(";"); err != nil {
 		return TraceError(err)
 	}
-	if err := ce.advance(); err != nil {
-		return TraceError(err)
-	}
+
 	return nil
 }
 
@@ -1052,11 +1031,23 @@ func (ce *CompilationEngine) compileTerm() error {
 		ce.cw.WritePush(SEG_CONST, intVal)
 		return nil
 	} else if ce.jt.TokenType() == strConst {
-		panic("string constants are not implemented yet")
-		_, err := ce.jt.StringVal()
+		strVal, err := ce.jt.StringVal()
 		if err != nil {
 			return TraceError(err)
 		}
+		// Allocate memory for the string
+		ce.cw.WritePush(SEG_CONST, uint(len(strVal)))
+		ce.cw.WriteCall("String.new", 1) // create the string object, returned to top of stack
+		// Write the string to memory
+		for _, c := range strVal {
+			// push the character to the stack
+			ce.cw.WritePush(SEG_CONST, uint(c))
+			// call String.appendChar. this appends the next char
+			// and returns the string object to the top of the stack
+			ce.cw.WriteCall("String.appendChar", 2)
+		}
+		ce.advance()
+
 		return nil
 	} else if ce.jt.TokenType() == keyWord {
 		kw, err := ce.getKeyWord()
@@ -1072,7 +1063,7 @@ func (ce *CompilationEngine) compileTerm() error {
 		case "this":
 			ce.cw.WritePush(SEG_POINTER, 0)
 		case "null":
-			panic("=this is not implemented yet")
+			panic("null is not implemented yet")
 		default:
 			return TraceError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
@@ -1127,22 +1118,23 @@ func (ce *CompilationEngine) compileTerm() error {
 		if peeked == '.' || peeked == '(' {
 			return ce.compileSubroutineCall()
 		} else if peeked == '[' {
-			_, err = ce.getVarName()
+			// We're terminating at an array access
+			varName, err := ce.getVarName()
 			if err != nil {
 				return TraceError(err)
 			}
-			if err := ce.eatSymbol("["); err != nil {
+			// Set the THAT segment to the address of the element in the array that is being accessed
+			if err := ce.setThatForArrayAccess(varName); err != nil {
 				return TraceError(err)
 			}
-			if err := ce.compileExpression(); err != nil {
-				return TraceError(err)
-			}
-			if err := ce.eatSymbol("]"); err != nil {
-				return TraceError(err)
-			}
+			// Push the value of the array element onto the stack
+			ce.cw.WritePush(SEG_THAT, 0)
 		} else {
 			// Else we are at a variable
 			varName, err := ce.getVarName()
+			if err != nil {
+				return TraceError(err)
+			}
 
 			kind, err := ce.st.KindOf(varName)
 			if err != nil {
@@ -1160,6 +1152,53 @@ func (ce *CompilationEngine) compileTerm() error {
 	} else {
 		return TraceError(fmt.Errorf("unknown error"))
 	}
+}
+
+// Sets the THAT segment to the address of the element in the array that is being accessed.
+//
+// Expects the tokenizer to be at the beginning of:
+// '[' expression ']'
+// `varName` must be the name of the array being accessed,
+// as in `varName[expression]`.
+//
+// Returns having eaten the closing ']' character.
+func (ce *CompilationEngine) setThatForArrayAccess(varName string) error {
+	// confirm that we're dealing with an Array
+	type_, err := ce.st.TypeOf(varName)
+	if err != nil {
+		return TraceError(err)
+	}
+	if type_ != "Array" {
+		return TraceError(fmt.Errorf("expected an array"))
+	}
+	// push the base address of the Array onto the stack
+	kind, err := ce.st.KindOf(varName)
+	if err != nil {
+		return TraceError(err)
+	}
+	index, err := ce.st.IndexOf(varName)
+	if err != nil {
+		return TraceError(err)
+	}
+	ce.cw.WritePush(kindToSegment(kind), index)
+
+	// eat the '['
+	if err = ce.advance(); err != nil {
+		return TraceError(err)
+	}
+	// compile the expression, it's result will then be on top of the stack
+	if err = ce.compileExpression(); err != nil {
+		return TraceError(err)
+	}
+	if err := ce.eatSymbol("]"); err != nil {
+		return TraceError(err)
+	}
+	// add the expression result (the index) to the base address of the Array to get the address of the element we want to set
+	ce.cw.WriteArithmetic(COM_ADD)
+	// pop the result into the pointer segment to set THAT
+	ce.cw.WritePop(SEG_POINTER, 1)
+
+	return nil
 }
 
 func kindToSegment(kind Kind) Segment {

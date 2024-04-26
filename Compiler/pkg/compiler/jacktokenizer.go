@@ -250,7 +250,7 @@ func (jt *JackTokenizer) TokenType() TokenType {
 // Symbol returns the raw token if TokenType is symbol
 func (jt *JackTokenizer) Symbol() (string, error) {
 	if jt.tokenType != symbol {
-		return "", TraceError(jt.newInvalidAccessError(symbol))
+		return "", jt.newInvalidAccessError(symbol)
 	}
 	return jt.symbol, nil
 }
