@@ -24,5 +24,5 @@ Tests TODO:
 - ~ConvertToBin~
 - ~Square~
 - ~Average~
-- Pong
+- ~Pong~
 - ComplexArrays

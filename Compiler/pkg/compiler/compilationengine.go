@@ -349,7 +349,7 @@ func (ce *CompilationEngine) compileSubroutine() error {
 		return TraceError(err)
 	}
 
-	if err := ce.compileParameterList(); err != nil {
+	if err := ce.compileParameterList(subKind); err != nil {
 		return TraceError(err)
 	}
 
@@ -386,15 +386,6 @@ func (ce *CompilationEngine) getVarName() (string, error) {
 		return "", err
 	}
 	return id, nil
-}
-
-// checkForIdentifier checks that the current token is an identifier
-func (ce *CompilationEngine) checkForIdentifier() error {
-	// Next should be a varName
-	if ce.jt.TokenType() != identifier {
-		return TraceError(fmt.Errorf("expected an %v", identifier))
-	}
-	return nil
 }
 
 // checkForSymbol checks that the passed symbol is currently being parsed
@@ -446,9 +437,17 @@ func (ce *CompilationEngine) eatSymbol(sym string) error {
 }
 
 // '(' ((type varName)(',' type varName)*)? ')'
-func (ce *CompilationEngine) compileParameterList() error {
+//
+// subKind is ('constructor' | 'function' | 'method')
+func (ce *CompilationEngine) compileParameterList(subKind string) error {
 	if err := ce.eatSymbol("("); err != nil {
 		return TraceError(err)
+	}
+
+	if subKind == "method" {
+		// The first argument of a method is always the object that the method is being called on.
+		// Therefore, we need to add one to the parameter list.
+		ce.st.Define("this", ce.className, KIND_ARG)
 	}
 
 	// While we have yet to hit the closing ")"
