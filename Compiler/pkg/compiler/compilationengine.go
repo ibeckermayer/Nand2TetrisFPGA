@@ -629,23 +629,11 @@ func (ce *CompilationEngine) compileSubroutineCall() error {
 			// We have a type for id1 in the symbol table, from which we can infer that it's a varName.
 			// Ergo we're dealing with a method call here, meaning that we need to push the object that's
 			// being called on to the stack, and then call the method on that object:
-
-			// First, we need to get the index of the object in the symbol table
-			index, err := ce.st.IndexOf(id1)
-			if err != nil {
-				return TraceError(err)
-			}
-			// Then we need to push the object onto the stack
-			kind, err := ce.st.KindOf(id1)
-			if err != nil {
-				return TraceError(err)
-			}
-			ce.cw.WritePush(kindToSegment(kind), index)
-			// Then we need to increment the number of arguments we're going to use to call the method
-			// by 1, since we're pushing the object onto the stack as the first argument.
+			ce.pushVarToStack(id1)
+			// Increment the number of arguments we're going to use to call the method
+			// by 1, since we're pushing "this" onto the stack as the first argument.
 			numArgs += 1
-
-			// And we need to prepend the class name of the type of id1 to the method name,
+			// And prepend the class name of the type of id1 to the method name
 			// since all VM methods are "fully qualified".
 			name = _type + "." + id2
 		} else {
@@ -1135,17 +1123,10 @@ func (ce *CompilationEngine) compileTerm() error {
 				return TraceError(err)
 			}
 
-			kind, err := ce.st.KindOf(varName)
+			err = ce.pushVarToStack(varName)
 			if err != nil {
 				return TraceError(err)
 			}
-
-			index, err := ce.st.IndexOf(varName)
-			if err != nil {
-				return TraceError(err)
-			}
-
-			ce.cw.WritePush(kindToSegment(kind), index)
 		}
 		return nil
 	} else {
@@ -1171,15 +1152,10 @@ func (ce *CompilationEngine) setThatForArrayAccess(varName string) error {
 		return TraceError(fmt.Errorf("expected an array"))
 	}
 	// push the base address of the Array onto the stack
-	kind, err := ce.st.KindOf(varName)
+	err = ce.pushVarToStack(varName)
 	if err != nil {
 		return TraceError(err)
 	}
-	index, err := ce.st.IndexOf(varName)
-	if err != nil {
-		return TraceError(err)
-	}
-	ce.cw.WritePush(kindToSegment(kind), index)
 
 	// eat the '['
 	if err = ce.advance(); err != nil {
@@ -1248,4 +1224,20 @@ func (ce *CompilationEngine) compileExpressionList() (uint, error) {
 	}
 
 	return nArgs, nil
+}
+
+// pushVarToStack pushes the variable with the given name onto the stack.
+func (ce *CompilationEngine) pushVarToStack(varName string) error {
+	kind, err := ce.st.KindOf(varName)
+	if err != nil {
+		return TraceError(err)
+	}
+
+	index, err := ce.st.IndexOf(varName)
+	if err != nil {
+		return TraceError(err)
+	}
+
+	ce.cw.WritePush(kindToSegment(kind), index)
+	return nil
 }
