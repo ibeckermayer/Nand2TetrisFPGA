@@ -582,6 +582,8 @@ func (ce *CompilationEngine) compileStatements() error {
 
 // subroutineName '(' expressionList ')' |
 // (className | varName) '.' subroutineName '(' expressionList ')'
+//
+// MUST not use temp 1
 func (ce *CompilationEngine) compileSubroutineCall() error {
 	var id1, id2, name string
 	var numArgs uint
@@ -716,14 +718,19 @@ func (ce *CompilationEngine) compileLet() error {
 	if sym, err = ce.jt.Symbol(); err != nil {
 		return TraceError(err)
 	}
+	settingArrayElement := sym == "["
 
 	// If we're at a "[", then we must be dealing with an array.
 	// In this case, we want to push the base address of the array (`varName`) onto the stack,
 	// and then add the index to that base address to get the address of the element we want to access.
-	if sym == "[" {
+	if settingArrayElement {
 		if err := ce.setThatForArrayAccess(varName); err != nil {
 			return TraceError(err)
 		}
+		// push the address of the array element we're setting onto the stack
+		ce.cw.WritePush(SEG_POINTER, 1)
+		// pop it over to temp for later use
+		ce.cw.WritePop(SEG_TEMP, 1)
 	}
 
 	// demand, compile, and eat '='
@@ -736,7 +743,12 @@ func (ce *CompilationEngine) compileLet() error {
 		return TraceError(err)
 	}
 
-	if sym == "[" {
+	if settingArrayElement {
+		// push the address of the array element we're setting, which we stored in temp
+		// earlier in this function, onto the stack
+		ce.cw.WritePush(SEG_TEMP, 1)
+		// set THAT to the address we just pushed onto the stack
+		ce.cw.WritePop(SEG_POINTER, 1)
 		// pop the expression result into the THAT segment
 		ce.cw.WritePop(SEG_THAT, 0)
 	} else {
@@ -955,6 +967,7 @@ func isOp(sym string) bool {
 	return (sym == "+" || sym == "-" || sym == "*" || sym == "/" || sym == "&" || sym == "|" || sym == "<" || sym == ">" || sym == "=")
 }
 
+// MUST not use temp 1
 func (ce *CompilationEngine) compileOp(sym string) {
 	switch sym {
 	case "+":
@@ -982,6 +995,8 @@ func (ce *CompilationEngine) compileOp(sym string) {
 
 // term (op term)*
 // Loops until a non (op term) is found, so caller should expect to be at the next token when this function returns.
+//
+// MUST not use temp 1
 func (ce *CompilationEngine) compileExpression() error {
 	// compiles the first term and pushes its result onto the top of the stack
 	if err := ce.compileTerm(); err != nil {
@@ -1009,6 +1024,8 @@ func (ce *CompilationEngine) compileExpression() error {
 // uintegerConstant | stringConstant | keywordConstant |
 // varName | varName '[' expression ']' | subroutineCall |
 // '(' expression ')' | unaryOp term
+//
+// MUST not use temp 1
 func (ce *CompilationEngine) compileTerm() error {
 	if ce.jt.TokenType() == intConst {
 		intVal, err := ce.getIntVal()
@@ -1050,7 +1067,7 @@ func (ce *CompilationEngine) compileTerm() error {
 		case "this":
 			ce.cw.WritePush(SEG_POINTER, 0)
 		case "null":
-			panic("null is not implemented yet")
+			ce.cw.WritePush(SEG_CONST, 0)
 		default:
 			return TraceError(fmt.Errorf("term keyWord must be one of \"true\", \"false\", \"null\", or \"this\""))
 		}
@@ -1194,6 +1211,8 @@ func kindToSegment(kind Kind) Segment {
 // (expression (',' expression)* )?
 // Caller should expect to be at the next token when this function returns.
 // Returns the number of ',' separated expressions that were compiled
+//
+// MUST not use temp 1
 func (ce *CompilationEngine) compileExpressionList() (uint, error) {
 	var nArgs uint
 

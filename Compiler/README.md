@@ -2,8 +2,20 @@
 
 #### Build
 
+To build the compiler itself:
+
 ```
 go build -o JackCompiler main.go
+```
+
+To build all the test programs:
+
+```
+# Loop through each directory in the test/ directory
+for dir in test/*/; do
+  # Run the JackCompiler command for the current directory
+  ./JackCompiler "$dir"
+done
 ```
 
 #### Testing
@@ -25,4 +37,4 @@ Tests TODO:
 - ~Square~
 - ~Average~
 - ~Pong~
-- ComplexArrays
+- ~ComplexArrays~
