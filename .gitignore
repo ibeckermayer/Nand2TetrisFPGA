@@ -9,6 +9,5 @@ __pycache__
 *.jpg
 **.DS_Store**
 **.dSYM**
-*.hack
 venv/*
 nand2tetris/*
