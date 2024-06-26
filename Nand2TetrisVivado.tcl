@@ -185,6 +185,9 @@ set proj_dir [get_property directory [current_project]]
 # Reconstruct message rules
 # None
 
+# Set the board repository path
+set_param board.repoPaths $origin_dir/Nand2TetrisVivado/boards/Digilent/basys3/1.2/
+
 # Set project properties
 set obj [current_project]
 set_property -name "board_part" -value "digilentinc.com:basys3:part0:1.2" -objects $obj

@@ -10,6 +10,5 @@ __pycache__
 **.DS_Store**
 **.dSYM**
 *.hack
-Nand2TetrisVivado/*
 venv/*
 nand2tetris/*
