@@ -125,8 +125,7 @@ func (jt *JackTokenizer) Advance() error {
 	// Skip all whitespace characters
 	if unicode.IsSpace(rune(jt.curChar())) {
 		jt.i++
-		jt.Advance()
-		return nil
+		return jt.Advance()
 	}
 
 	// Skip line comments
@@ -137,8 +136,7 @@ func (jt *JackTokenizer) Advance() error {
 			jt.i++
 		}
 		jt.i++ // Eat the '\n'
-		jt.Advance()
-		return nil
+		return jt.Advance()
 	}
 
 	// Skip block comments
@@ -152,8 +150,7 @@ func (jt *JackTokenizer) Advance() error {
 			return errors.New("Encountered block comment open characters '/*' but didn't find subsequent block comment close characters '*/'")
 		}
 		jt.i = jt.i + 2 // Eat the closing "*/"
-		jt.Advance()
-		return nil
+		return jt.Advance()
 	}
 
 	// Comments and whitespace have been skipped, now determine what type of lexical element we're analyzing

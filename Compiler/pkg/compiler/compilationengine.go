@@ -3,6 +3,7 @@ package compiler
 import (
 	"errors"
 	"fmt"
+	"log"
 )
 
 var DEBUG = false
@@ -15,7 +16,9 @@ type CompilationEngine struct {
 	cw *CodeWriter    // The code writer
 	// className is the class name being compiled,
 	// set at compileClass by compilation engine
-	className string
+	className string // The name of the class being compiled
+	subKind   string // The kind of subroutine being compiled
+	subName   string // The name of the subroutine being compiled
 	// whileId is used to ensure unique labels are used in the vm code translation
 	// for each while loop encountered in the class
 	whileId uint
@@ -63,7 +66,12 @@ func (ce *CompilationEngine) Run() error {
 		return TraceError(err)
 	}
 
-	return ce.compileClass()
+	if err := ce.compileClass(); err != nil {
+		log.Printf("Compilation error in %v %v %v", ce.className, ce.subKind, ce.subName)
+		return TraceError(err)
+	}
+
+	return nil
 }
 
 // advance throws an error if there are no more tokens, else it returns ce.jt.Advance()
@@ -274,6 +282,9 @@ func (ce *CompilationEngine) getIdentifier() (string, error) {
 // subKind must be one of "constructor" or "function" or "method", and subName must be the name of the subroutine
 func (ce *CompilationEngine) compileSubroutineBody(subKind string, subName string) error {
 	var err error
+
+	ce.subKind = subKind
+	ce.subName = subName
 
 	if subKind != "constructor" && subKind != "function" && subKind != "method" {
 		return TraceError(fmt.Errorf("expected a subroutine kind: \"constructor\" or \"function\" or \"method\""))
