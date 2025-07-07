@@ -34,7 +34,7 @@ class Math {
         let powersOfTwo[12] = 4096;
         let powersOfTwo[13] = 8192;
         let powersOfTwo[14] = 16384;
-        let powersOfTwo[15] = 16384 + 16384; // -32768;
+        let powersOfTwo[15] = 16384 + 16384; // -32767;
         return;
     }
 
