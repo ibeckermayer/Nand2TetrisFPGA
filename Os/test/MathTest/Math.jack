@@ -34,7 +34,7 @@ class Math {
         let powersOfTwo[12] = 4096;
         let powersOfTwo[13] = 8192;
         let powersOfTwo[14] = 16384;
-        let powersOfTwo[15] = 16384 + 16384; // -32767;
+        let powersOfTwo[15] = 16384 + 16384; // -32768;
         return;
     }
 
@@ -54,17 +54,17 @@ class Math {
      *  Thus, in Jack, x * y and Math.multiply(x,y) return the same value. */
     function int multiply(int x, int y) {
         var int j, sum, shiftedX;
-        //var boolean xIsNegative, yIsNegative, resultIsNegative;
+        var boolean xIsNegative, yIsNegative, resultIsNegative;
 
-        //let xIsNegative = x < 0;
-        //let yIsNegative = y < 0;
-        //let resultIsNegative = ~(xIsNegative = yIsNegative);
-        //if (xIsNegative) {
-            //let x = Math.abs(x);
-        //}
-        //if (yIsNegative) {
-            //let y = Math.abs(y);
-        //}
+        let xIsNegative = x < 0;
+        let yIsNegative = y < 0;
+        let resultIsNegative = ~(xIsNegative = yIsNegative);
+        if (xIsNegative) {
+            let x = Math.abs(x);
+        }
+        if (yIsNegative) {
+            let y = Math.abs(y);
+        }
 
         let sum = 0;
         let shiftedX = x;
@@ -76,9 +76,9 @@ class Math {
             let shiftedX = shiftedX + shiftedX;
             let j = j + 1;
         }
-        //if (resultIsNegative) {
-            //return -sum;
-        //}
+        if (resultIsNegative) {
+            return -sum;
+        }
         return sum;
     }
 
